@@ -346,6 +346,13 @@ static int name_is(const char *a, const char *b) /* two preset names (NAME_LEN, 
     return 1;
 }
 static int preset_apply(int trk, int i);
+static int eg_step(int cur, int d)               /* the next engine the picker offers, up (d > 0) or down; none: as it is */
+{
+    for (int e = cur + (d > 0 ? 1 : -1); e >= 0 && e < NENGINE; e += d > 0 ? 1 : -1)
+        if (eg_offered(e))
+            return e;
+    return cur;
+}
 /* PRESETS: the next sound of the track's own engine (its factory presets, then the user presets saved from it);
  * the message says what it is for and where: "PAD 3/16 MUSLIN PAD" (a user preset: "PRESET 17/18") */
 static void preset_step(int trk, int d)
@@ -2422,7 +2429,7 @@ static void list_change_do(int32_t e)
     }
     case LK_PICK:
         switch (lst.row[lst.sel].id) {
-        case A_ENGINE: ui.pick_engine = (uint8_t)clampi(ui.pick_engine + d, 0, NENGINE - 1); break;
+        case A_ENGINE: ui.pick_engine = (uint8_t)eg_step(ui.pick_engine, d); break;
         case A_CLEAR: ui.pick_clear = (uint8_t)clampi(ui.pick_clear % 3u + d, 0, 2); break;
         case A_ROTATE: case A_SHIFT: {           /* how far: never 0 (left / down past 1 goes to -1) */
             int8_t *v = lst.row[lst.sel].id == A_ROTATE ? &ui.pick_rot : &ui.pick_shift;
@@ -3763,7 +3770,7 @@ static void input(void)
         if (lst.open)
             list_change(e);
         else if (page_btn_held(B_EDIT) && !is_aux(sel_trk())) {   /* EDIT held: ALGORITHM picks the engine */
-            ui.pick_engine = (uint8_t)clampi(proj.trk[sel_trk()].par[TP_ENGINE] + (e > 0 ? 1 : -1), 0, NENGINE - 1);
+            ui.pick_engine = (uint8_t)eg_step(proj.trk[sel_trk()].par[TP_ENGINE], e > 0 ? 1 : -1);
             if (ui.pick_engine != proj.trk[sel_trk()].par[TP_ENGINE])
                 action_run(A_ENGINE);
         } else

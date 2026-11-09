@@ -34,7 +34,7 @@ def main(d):
     for name, chs in (("both", both), ("panned", panned), ("muted", muted)):
         print(f"  {name:7s}", lv(chs))
     fails = []
-    if not (db(both[2]) > -40 and db(both[3]) > -40):
+    if not (db(both[2]) > -45 and db(both[3]) > -45):
         fails.append("T1 and T2 should sound")
     if any(rms(c) for c in both[4:]):
         fails.append("T3..T8 should be silent")

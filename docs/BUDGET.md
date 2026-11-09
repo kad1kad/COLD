@@ -13,3 +13,4 @@ All figures are from the host toolchain build, not measured on hardware.
 | 2026-11-09 | id_prefix FM-1_44 (identity only) | 579,700 B | 472,784 of 475,136 B | 20,172 B | 97,348 B | 355,256 B | 2,352 B (2,048 B) |
 | 2026-11-09 | Phase 1a: weave and conductor hidden in the UI (code still there) | 579,664 B | 472,768 of 475,136 B | 20,172 B | 97,332 B | 355,256 B | 2,368 B (2,048 B) |
 | 2026-11-09 | Phase 1a: weave removed (engine, data, UI), PROJ_FORMAT 21, old formats dropped | 569,616 B | 468,944 of 475,136 B | 20,172 B | 96,364 B | 352,400 B | 6,192 B (2,048 B) |
+| 2026-11-09 | Engine picker offers only kept engines; new-project defaults use rayon and jacquard (no code removed yet) | 569,552 B | 468,944 of 475,136 B | 20,172 B | 96,364 B | 352,400 B | 6,192 B (2,048 B) |

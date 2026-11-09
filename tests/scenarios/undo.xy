@@ -4,24 +4,24 @@ wait 300
 turn ALGO 1
 expect trk 2
 tap EDIT
-param 2 e1 40
+param 2 e1 1
 turn K1 5
-expect par2.e1 45
+expect par2.e1 6
 press HOME
 tap REC
 release HOME
-expect par2.e1 40
+expect par2.e1 1
 press HOME
 tap PLAY
 release HOME
-expect par2.e1 45
+expect par2.e1 6
 wait 1200
-param 2 e1 40
+param 2 e1 1
 turn PRESET 1
 press HOME
 tap REC
 release HOME
-expect par2.e1 40
+expect par2.e1 1
 # a step on the pattern, undone: gone; redone: back
 turn ALGO -1
 expect trk 1

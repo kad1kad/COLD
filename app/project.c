@@ -171,7 +171,7 @@ void project_random_sounds(uint32_t seed)
         rl = ROLES[t - 1];
         for (k = 0; k < NPRESETS; k++) {                 /* reservoir: one of the matching presets, evenly */
             int eg = PRESETS[k].par[TP_ENGINE], role = PRESETS[k].role;
-            if (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_DRUMLINE ||
+            if (eg == EG_SAMPLE || eg == EG_DRUMLINE || !eg_offered(eg) ||
                 (role != rl[0] && role != rl[1] && role != rl[2]))
                 continue;
             n++;
@@ -217,8 +217,9 @@ void project_device_put(void)
 
 void project_defaults(void)
 {
-    static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_KNIT, EG_RAYON, EG_JACQUARD, EG_KNIT, EG_BELLOWS, EG_CANE,
-                                        EG_VOILE};
+    /* until FMini is ported (Phase 2), T2 and T3 stand in with jacquard and rayon; T6..T8 go with the 5-track cut */
+    static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_JACQUARD, EG_RAYON, EG_JACQUARD, EG_RAYON, EG_JACQUARD, EG_RAYON,
+                                        EG_JACQUARD};
     int t, k;
     uint8_t *z = (uint8_t *)&proj, keep = proj.magic == PROJ_MAGIC;   /* (a project before it: the FM-1's settings
                                                                      * carried over; at the first start, none) */
@@ -259,8 +260,6 @@ void project_defaults(void)
             tr->par[TP_S] = 0;
             tr->par[TP_R] = 64;
             set_name(tr, "kit");
-        } else if (t == 1) {
-            apply_preset(tr, preset_named(EG_KNIT, "sub"));     /* knit's round sub under everything */
         } else {
             apply_preset(tr, preset_first(ORDER[t]));
         }

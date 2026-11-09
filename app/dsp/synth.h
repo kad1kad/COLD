@@ -50,6 +50,9 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
 #define NVOILE 4
 #define CN_SLOTS 4
 #define CN_LEN 1536
+/* the engines the UI offers (the engine picker): the rest are cut (knit, bellows, cane, voile, acid, slice: their code
+ * and numbers stay until Phase 1b removes them, so a project that has one still plays). FMini joins in Phase 2 */
+static inline int eg_offered(int e) { return e == EG_RAYON || e == EG_JACQUARD || e == EG_SAMPLE || e == EG_DRUMLINE || e == EG_MIDI; }
 static inline int eg_synth(int e) { return e >= 0 && e < NENGINE && e != EG_DRUMLINE && e != EG_MIDI; }   /* a voice
                                                                                                          * engine */
 enum { SM_ONESHOT, SM_LOOP, SM_REVERSE, SM_PINGPONG, NSM };   /* the sample engine's modes (TP_E4) */

@@ -1,0 +1,41 @@
+# the engine picker offers only the kept engines (synth.h eg_offered: rayon, jacquard, sample, kit, MIDI out), whether
+# EDIT is held with ALGORITHM or SEL's ENGINE row is turned; the cut ones (knit, bellows, cane, voile, acid, slice) are
+# skipped. Engine numbers: rayon 1, jacquard 2, sample 6, kit 8, MIDI 9
+wait 300
+turn ALGO 1
+expect trk 2
+expect par2.0 2
+tap EDIT
+press EDIT
+turn ALGO 1
+expect par2.0 6
+turn ALGO 1
+expect par2.0 8
+turn ALGO 1
+expect par2.0 9
+turn ALGO 1
+expect par2.0 9
+turn ALGO -1
+expect par2.0 8
+turn ALGO -1
+expect par2.0 6
+turn ALGO -1
+expect par2.0 2
+turn ALGO -1
+expect par2.0 1
+turn ALGO -1
+expect par2.0 1
+release EDIT
+# SEL's list: ENGINE moves the same way (from rayon up one: jacquard; two more: the sample player, knit and the rest skipped)
+tap SEL
+row ENGINE
+turn ALGO 1
+tap SEL
+wait 50
+expect par2.0 2
+tap SEL
+row ENGINE
+turn ALGO 1
+tap SEL
+wait 50
+expect par2.0 6
