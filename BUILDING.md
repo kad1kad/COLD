@@ -55,7 +55,7 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 `./build.sh --release 0.1` makes a release build: the package is `app/build/cold-0.1.fwsc`, its identity
-FM-1_10XXYYZZ (a dev build's is FM-1_1000).
+FM-1_44XXYYZZ (a dev build's is FM-1_4400).
 
 The build generates `app/build/gen/` (fm1-base's fonts for its own screens, LOOM-8's fonts, the wavetables, the
 factory samples, the screen reader's words link, this build's number). It runs LOOM-8's size pass
@@ -142,5 +142,5 @@ gh attestation verify "build/verify/loom-${tag#v}.fwsc" --repo "$repo" \
 The same checks the `-app.bin`. `SHA256SUMS` comes with the downloads; a checksum alone proves nothing about where a
 package was built.
 
-A local release build (`./build.sh --release X.Y`, package `app/build/cold-X.Y.fwsc`; its identity FM-1_10XXYYZZ is
+A local release build (`./build.sh --release X.Y`, package `app/build/cold-X.Y.fwsc`; its identity FM-1_44XXYYZZ is
 what the installer checks) is still how to try one on the FM-1 before tagging.

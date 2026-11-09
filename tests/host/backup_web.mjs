@@ -129,7 +129,7 @@ console.log("backup page: the samples section");
   const page = readFileSync("base/web/backup/index.html", "utf8");
   const m = /\/\/ --- backup protocol: begin[^\n]*\n([\s\S]*?)\/\/ --- backup protocol: end/.exec(page);
   const PORTS_JS = readFileSync("base/web/fm1ports.js", "utf8").replace(/^export\s+/gm, "").replace(/^import .*?;\n/gm, "");
-  const proto = m[1].replace(/\{\{[A-Z_]+\}\}/g, (k) => ({ "{{NAME}}": "COLD", "{{ID}}": "FM-1_10", "{{MAGIC}}": "CLDB",
+  const proto = m[1].replace(/\{\{[A-Z_]+\}\}/g, (k) => ({ "{{NAME}}": "COLD", "{{ID}}": "FM-1_44", "{{MAGIC}}": "CLDB",
     "{{BACKUP_VERSION}}": "1", "{{EXT}}": "loom8", "{{PORTS_JS}}": PORTS_JS })[k] || k);   // (fm1-base make_site's fill)
   const PB = new Function(`"use strict";\n${proto}\nreturn PB;`)();
   py(`import fm1_backup as B\nopen("${dir}/proj.bin","wb").write(B.build([(1, b"p" * 300), (2, b"")], magic=b"CLDB", version=1))`);

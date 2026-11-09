@@ -1,6 +1,6 @@
 # LOOM-8's build settings (fm1-base's tools/build.py: ./build.sh)
 name = "cold"                  # the build's files: cold.fwsc, cold-X.Y.fwsc, cold_host (APP_NAME, COLD, is in app.h)
-id_prefix = "FM-1_10"          # package identity: dev FM-1_1000, releases FM-1_10XXYYZZ (every single digit was taken)
+id_prefix = "FM-1_44"          # package identity: dev FM-1_4400, releases FM-1_44XXYYZZ (no firmware on the Firmware Hub starts with FM-1_44, checked 2026-11-09)
 usb_manufacturer = "COLD"
 usb_product = "COLD FM-1"
 ble = true                     # Bluetooth MIDI with a computer
