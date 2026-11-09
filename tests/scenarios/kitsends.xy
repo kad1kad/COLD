@@ -35,7 +35,7 @@ shot kit_edit_sends.png
 # from the THROW track, ARP goes back to the last track picked (as Mix's FX strips: ALGO passed T8 on the way)
 turn ALGO 1
 expect trk 2
-turn ALGO 7
-expect trk 10
+turn ALGO 4
+expect trk 7
 tap ARP
-expect trk 8
+expect trk 5

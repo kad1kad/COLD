@@ -1,4 +1,4 @@
-# the USB audio input's ten channels (fm1.toml usb_audio_channels = 10): the master on 1 and 2, tracks 1..8 on 3..10.
+# the USB audio input's eight channels (fm1.toml usb_audio_channels = 8): the master on 1 and 2, tracks 1..5 on 3..7, 8 unused.
 # A beat on T1, a melody on T2; recorded as a computer gets them (tests/usbtracks_check.py reads the files)
 wait 200
 expect page Steps

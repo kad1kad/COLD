@@ -12,8 +12,8 @@ shot punch_home.png
 key 0 up
 wait 100
 expect punch_drum 0
-spin ALGO 8
-expect trk 10
+spin ALGO 5
+expect trk 7
 tap EDIT
 key 1 down
 key 14 down
@@ -29,7 +29,7 @@ tapkey 3
 # the remembered effect on a step
 tap SEQ
 tapkey w0
-expect note 10 1 1 9
+expect note 7 1 1 9
 wait 40
 shot punch_steps.png
 tap PLAY

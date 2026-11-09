@@ -128,7 +128,9 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 21u                 /* 21: the WEAVE track and the scenes' weave pattern gone (a track and a byte
+#define PROJ_FORMAT 22u                 /* 22: five tracks (NTRK 5: three instrument tracks fewer in the settings and
+                                         * the pattern store).
+                                         * 21: the WEAVE track and the scenes' weave pattern gone (a track and a byte
                                          * less). Only this format loads: the older ones (10..20, LOOM-8's) were dropped,
                                          * not migrated (no users yet; an older project is left alone in its slot). Their
                                          * history is in git (project.c before COLD's 2026-11-09 weave removal) */

@@ -22,8 +22,8 @@ expect par2.oct 0
 preset 4 no_such_preset rayon
 expect par4.0 1
 # the FX tracks by their effect's name
-knob 12 engine hall
-expect par12.0 9
+knob 9 engine hall
+expect par9.0 9
 # patterns: length, scale, note length, groove
 pat 1 1 16 1 50 40
 pat 2 1 32 2

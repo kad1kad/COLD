@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 #define SY_SR 44100.0f
-#define NTRK 8                        /* instrument tracks (seq/pattern.h agrees) */
+#define NTRK 5                        /* instrument tracks (seq/pattern.h agrees) */
 #define SY_CHUNK 64                   /* control rate: envelopes, LFO, glides, locks */
 #define NVOICE 16                     /* synth voices, all tracks */
 #define NVOICE_TRK 6                  /* the most one track takes */

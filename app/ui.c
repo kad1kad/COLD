@@ -1265,10 +1265,10 @@ static void track_select(int t)
  * page the tracks that play (T1-T8, the throws) */
 static void track_step(int e)
 {
-    static const uint8_t MIXT[10] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2};
-    static const uint8_t SEQT[9] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_PUNCH};   /* (the conductor is hidden) */
+    static const uint8_t MIXT[7] = {0, 1, 2, 3, 4, AUX_FX1, AUX_FX2};
+    static const uint8_t SEQT[6] = {0, 1, 2, 3, 4, AUX_PUNCH};   /* (the conductor is hidden) */
     const uint8_t *L = ui.page == P_MIX ? MIXT : SEQT;
-    int N = ui.page == P_MIX ? 10 : 9, cur = sel_trk(), i, d = e > 0 ? 1 : -1, n = e > 0 ? e : -e;
+    int N = ui.page == P_MIX ? 7 : 6, cur = sel_trk(), i, d = e > 0 ? 1 : -1, n = e > 0 ? e : -e;
     for (i = 0; i < N && L[i] != cur; i++)
         ;
     if (i == N) {                                /* (not in the list: from where it would sit) */
@@ -1574,7 +1574,7 @@ static void key_down(int k)
     }
     if (p == P_MIX) {
         if (b >= 0) {
-            static const uint8_t T[11] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2, 0xFF};
+            static const uint8_t T[11] = {0, 1, 2, 3, 4, AUX_FX1, AUX_FX2, 0xFF, 0xFF, 0xFF, 0xFF};
             if (T[b] == 0xFF)
                 return;
             ui.kmode[k] = KM_SOLO;               /* a tap mutes it, a hold solos it (holds()) */
@@ -3849,9 +3849,9 @@ static void leds(void)
                     else
                         mid |= 1u << BLACK_K[i];
                 }
-        } else if (ui.page == P_MIX) {           /* Mix's black keys: T1-T8, then FX I and FX II (they have no mute) */
-            static const uint8_t MT[10] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2};
-            for (i = 0; i < 10; i++)
+        } else if (ui.page == P_MIX) {           /* Mix's black keys: T1-T5, then FX I and FX II (they have no mute) */
+            static const uint8_t MT[7] = {0, 1, 2, 3, 4, AUX_FX1, AUX_FX2};
+            for (i = 0; i < 7; i++)
                 if (MT[i] >= NSEQT || !(seq.mute >> MT[i] & 1u)) {
                     if (MT[i] == trk)
                         k |= 1u << BLACK_K[i];

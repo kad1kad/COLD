@@ -21,16 +21,13 @@ typedef struct {
 static const theme_t THEMES[] = {
     {"tape deck", RGB(24, 18, 14), RGB(44, 34, 26), RGB(70, 56, 42), RGB(74, 60, 46), RGB(120, 100, 80),
      RGB(190, 170, 140), RGB(244, 230, 200), RGB(150, 130, 104), RGB(230, 70, 40), RGB(240, 220, 180),
-     {RGB(230, 180, 50), RGB(214, 96, 48), RGB(160, 170, 70), RGB(70, 170, 160), RGB(110, 150, 200), RGB(180, 110, 150),
-      RGB(210, 170, 120), RGB(150, 190, 150)}, 6, 9},
+     {RGB(230, 180, 50), RGB(214, 96, 48), RGB(160, 170, 70), RGB(70, 170, 160), RGB(110, 150, 200)}, 6, 9},
     {"blueprint", RGB(16, 48, 104), RGB(24, 62, 128), RGB(40, 84, 156), RGB(60, 100, 170), RGB(110, 140, 200),
      RGB(170, 195, 235), RGB(240, 246, 255), RGB(130, 160, 215), RGB(255, 110, 90), RGB(255, 255, 255),
-     {RGB(255, 150, 190), RGB(120, 240, 230), RGB(255, 200, 80), RGB(180, 240, 120), RGB(255, 170, 110),
-      RGB(210, 180, 255), RGB(240, 120, 120), RGB(200, 230, 200)}, 7, 11},
+     {RGB(255, 150, 190), RGB(120, 240, 230), RGB(255, 200, 80), RGB(180, 240, 120), RGB(255, 170, 110)}, 7, 11},
     {"b/w", RGB(0, 0, 0), RGB(30, 30, 34), RGB(58, 58, 64), RGB(60, 60, 66), RGB(96, 96, 102),
      RGB(150, 150, 156), RGB(235, 235, 238), RGB(130, 130, 138), RGB(232, 44, 38), RGB(215, 215, 220),
-     {RGB(255, 92, 170), RGB(40, 204, 192), RGB(244, 200, 60), RGB(104, 152, 255), RGB(255, 136, 64),
-      RGB(110, 216, 110), RGB(178, 136, 255), RGB(214, 176, 136)}, 6, 9},
+     {RGB(255, 92, 170), RGB(40, 204, 192), RGB(244, 200, 60), RGB(104, 152, 255), RGB(255, 136, 64)}, 6, 9},
 };
 #define NTHEMES (sizeof THEMES / sizeof THEMES[0])
 #define THEME_BW 2
@@ -149,8 +146,8 @@ static int group_n(int g);                           /* the pages a button has n
 static const char *const BTN_LABEL[NB] = {"FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ",
                                           "PLAY", "REC", "OCT-", "OCT+"};
 
-/* the tracks: 1-8, then the aux tracks (the tag's short names, the pages' long ones) */
-static const char *const TRACK_NAME[NALLTRK] = {"T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "COND", "THROW",
+/* the tracks: 1-5, then the aux tracks (the tag's short names, the pages' long ones) */
+static const char *const TRACK_NAME[NALLTRK] = {"T1", "T2", "T3", "T4", "T5", "COND", "THROW",
                                                 "FX I", "FX II"};
 static const char *const NOTE_NAME[12] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
 /* the step components (SC_*: the OP-XY's 14, on the white keys with HOME and a step held), their letter on
@@ -5425,8 +5422,8 @@ static void draw_mix(void)
 {
     static float m_db[NALLTRK], m_hold[NALLTRK];
     static uint32_t m_hold_ms[NALLTRK], m_last;
-    static const char *const SHORT_NM[NALLTRK] = {"1", "2", "3", "4", "5", "6", "7", "8", "CO", "TH", "F1", "F2"};
-    static const int8_t COL[NALLTRK] = {0, 1, 2, 3, 4, 5, 6, 7, -1, -1, 8, 9};   /* the strips' places (the conductor and the
+    static const char *const SHORT_NM[NALLTRK] = {"1", "2", "3", "4", "5", "CO", "TH", "F1", "F2"};
+    static const int8_t COL[NALLTRK] = {0, 1, 2, 3, 4, -1, -1, 5, 6};   /* the strips' places (the conductor and the
                                                                               * throws make no sound: none) */
     uint32_t now = plat_ms(), dt = now - m_last;
     int sel = sel_trk();
@@ -5460,7 +5457,7 @@ static void draw_mix(void)
     for (int t = 0; t < NALLTRK; t++) {
         if (COL[t] < 0)
             continue;
-        int32_t x = 4 + COL[t] * 18 + (COL[t] >= 8 ? 14 : 0);
+        int32_t x = 4 + COL[t] * 18 + (COL[t] >= NTRK ? 14 : 0);
         int muted = t < NSEQT && (seq.mute >> t & 1u), sound = t < NTRK || is_fx(t);
         uint16_t ink = muted ? K_FAINT : trk_ink(t);      /* (muted: its steps, grey) */
         text_c(x + 7, 94, &FONT_XS, SHORT_NM[t], t == sel ? K_TEXT : muted || !sound ? K_FAINT : K_DIM);

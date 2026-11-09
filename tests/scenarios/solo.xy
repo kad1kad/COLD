@@ -7,19 +7,19 @@ tapkey b2
 wait 100
 tapkey b2
 wait 40
-expect mute 1019
+expect mute 123
 wait 1200
-expect mute 1019
+expect mute 123
 shot mix_solo_latched.png
 # a hold adds track 4 while held; let go, track 2 still alone
 key b4 down
 wait 900
-expect mute 1003
+expect mute 107
 key b4 up
 wait 40
-expect mute 1019
+expect mute 123
 # a tap: the solo ends
-tapkey b5
+tapkey b4
 wait 400
 expect mute 0
 # track 1 muted, then track 3 double tapped: the first tap's mute undone, track 1's kept to go back to
@@ -30,14 +30,14 @@ tapkey b3
 wait 100
 tapkey b3
 wait 40
-expect mute 1015
+expect mute 119
 # another track double tapped while soloed: it alone
-tapkey b6
+tapkey b4
 wait 100
-tapkey b6
+tapkey b4
 wait 40
-expect mute 959
-tapkey b6
+expect mute 111
+tapkey b4
 wait 400
 expect mute 2
 # a muted track still shows its steps on its meter, in grey (an empty muted track none)

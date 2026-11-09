@@ -161,8 +161,8 @@ void project_random_sounds(uint32_t seed)
 {
     static const uint8_t ROLES[NTRK - 1][3] = {
         {RL_BASS, RL_BASS, RL_BASS}, {RL_CHORD, RL_STAB, RL_BRASS}, {RL_PAD, RL_PAD, RL_STRINGS},
-        {RL_LEAD, RL_LEAD, RL_LEAD}, {RL_KEYS, RL_KEYS, RL_KEYS}, {RL_FX, RL_FX, RL_FX}, {RL_PLUCK, RL_BELL, RL_VOICE}};
-    static const uint8_t VMODE[NTRK - 1] = {VM_MONO, VM_POLY, VM_POLY, VM_MONO, VM_POLY, 0xFF, 0xFF};   /* 0xFF: its own */
+        {RL_LEAD, RL_LEAD, RL_LEAD}};
+    static const uint8_t VMODE[NTRK - 1] = {VM_MONO, VM_POLY, VM_POLY, VM_MONO};   /* 0xFF: its own */
     uint32_t r = seed ? seed : 0x9E3779B9u;
     for (int t = 1; t < NTRK; t++) {
         int n = 0, k, pick = -1;
@@ -217,9 +217,8 @@ void project_device_put(void)
 
 void project_defaults(void)
 {
-    /* until FMini is ported (Phase 2), T2 and T3 stand in with jacquard and rayon; T6..T8 go with the 5-track cut */
-    static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_JACQUARD, EG_RAYON, EG_JACQUARD, EG_RAYON, EG_JACQUARD, EG_RAYON,
-                                        EG_JACQUARD};
+    /* until FMini is ported (Phase 2), T2 and T3 stand in with jacquard and rayon */
+    static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_JACQUARD, EG_RAYON, EG_JACQUARD, EG_RAYON};
     int t, k;
     uint8_t *z = (uint8_t *)&proj, keep = proj.magic == PROJ_MAGIC;   /* (a project before it: the FM-1's settings
                                                                      * carried over; at the first start, none) */

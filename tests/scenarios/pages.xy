@@ -169,8 +169,8 @@ tap HOME
 expect page Steps
 # the aux tracks' pages
 tap EDIT
-spin ALGO 6
-expect trk 10
+spin ALGO 3
+expect trk 7
 wait 40
 shot punch.png
 spin ALGO 1
@@ -187,10 +187,10 @@ shot fx2.png
 shot fx2_lush.png
 # the reverb's SPU modes: the longest names on the page, its title and its list (from the plate: lush is the default)
 turn PRESET -10
-expect par12.0 4
+expect par9.0 4
 turn PRESET 7
 wait 40
-expect par12.0 11
+expect par9.0 11
 shot fx2_space_echo.png
 turn PRESET 1
 wait 40
@@ -200,5 +200,5 @@ wait 40
 shot fx2_list.png
 tap HOME
 turn PRESET -8
-expect par12.0 4
+expect par9.0 4
 expect trk 1
