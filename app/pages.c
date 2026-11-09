@@ -702,10 +702,9 @@ static int group_n(int g)
         return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
              : x_page(trk) ? 4 : 3;      /* (a kit: Engine, Key, Sends: the key's own; Engine 2 after Engine when the
                                           * key's model has eight knobs) */
-    if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
-        return is_aux(trk) ? 1
-             : is_drum(trk) || pl_type(trk) == PL_OFF ? 2
-             : pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? 4 : 3;
+    if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's; Weave is hidden) */
+        return is_aux(trk) || is_drum(trk) || pl_type(trk) == PL_OFF ? 1
+             : pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? 3 : 2;
     if (b == B_ENV)
         return is_drum(trk) ? 4 : is_midi(trk) ? 1 : is_acid(trk) ? 2 : 3;   /* a kit: the key's envelope, filter; the
                                                            * kit's envelope, filter (a MIDI track: none, page_button
@@ -741,14 +740,11 @@ static int grp_page(int g, int i)
     if (PAGE_BTN[g].btn == B_FX && is_midi(sel_trk()))
         return P_FX1 + i % 3;                        /* (a MIDI track: no sound for Character or Sends) */
     if (PAGE_BTN[g].btn == B_ARP) {
-        static const uint8_t ARPP[4] = {P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE};
-        static const uint8_t OTHER[3] = {P_PLAYERS, P_PLAYERS2, P_WEAVE};
+        static const uint8_t ARPP[3] = {P_PLAYERS, P_PLAYERS2, P_PLAYERS3};
         int trk = sel_trk();
-        if (is_aux(trk))
-            return P_WEAVE;
-        if (is_drum(trk) || pl_type(trk) == PL_OFF)
-            return i & 1 ? P_WEAVE : P_PLAYERS;      /* (a kit, or no player: its page shows it off, then Weave) */
-        return pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? ARPP[i & 3] : OTHER[(i % 3 + 3) % 3];
+        if (is_aux(trk) || is_drum(trk) || pl_type(trk) == PL_OFF)
+            return P_PLAYERS;                        /* (a kit, or no player: its page shows it off; Weave is hidden) */
+        return pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? ARPP[(i % 3 + 3) % 3] : ARPP[(i % 2 + 2) % 2];
     }
     return PAGE_BTN[g].first + i;
 }
@@ -2542,7 +2538,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
     {B_FX, PG_ANY, "Effects", "Character, sends, FX I, FX II, then Throws: keys fire effects.",
      "PRESETS: the type or effect. SEL: an FX's filter."},
     {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Page 2 has the type's fourth and fifth."},
-    {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random; last page, Weave.",
+    {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random.",
      "Random: tap steps as active slots; SEQ picks the pool."},
     {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
@@ -2861,7 +2857,7 @@ static void list_home(int keep)
 /* EDIT: the sound's actions (EDIT only: the other buttons' lists are their knobs) */
 static void list_sound(int trk)
 {
-    static char slot_t[24], fol_t[24], kit_t[24], nm[NTRK][16], from_t[24], key_t[24];
+    static char slot_t[24], kit_t[24], nm[NTRK][16], from_t[24], key_t[24];
     int sc = snd_clip ? snd_clip - 1 : -1, paste = sc >= 0 && sc != trk && sc < NTRK && is_drum(sc) == is_drum(trk);
     if (trk == AUX_BRAIN) {
         list_head("follow");
@@ -2911,8 +2907,6 @@ static void list_sound(int trk)
             num_s((uint32_t)sc + 1u, s_cat(from_t, "from T"));
             list_add(ACTION_NAME[A_PASTE_SOUND], from_t, LK_ACTION, A_PASTE_SOUND);
         }
-        s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % NBM]);
-        list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
         if (is_midi(trk)) {                          /* its knobs' CCs (its notes always go out: no MIDI OUT) */
             list_head("MIDI");
             for (int k = 0; k < 8; k++) {
@@ -3236,7 +3230,10 @@ static uint32_t hash_pat(uint32_t h, const tpat_t *p)
 static void arrange_large(const int *mh, const int *amh)
 {
     for (int tr = 0; tr < NSEQT; tr++) {
-        int32_t cw = 44, ch = 38, x = 2 + (tr % 5) * (cw + 4), y = 2 + (tr / 5) * (ch + 4);
+        if (tr == AUX_BRAIN)
+            continue;                                /* (the conductor is hidden) */
+        int cell = tr > AUX_BRAIN ? tr - 1 : tr;
+        int32_t cw = 44, ch = 38, x = 2 + (cell % 5) * (cw + 4), y = 2 + (cell / 5) * (ch + 4);
         int muted = seq.mute >> tr & 1u, pt = seq.ppat[tr] % NPATT, len = tpat(tr)->len, pos = eng_step[tr], lf, le;
         int m = tr < NTRK ? mh[tr] : amh[tr - NTRK];
         uint16_t ink = muted ? K_FAINT : trk_ink(tr);
@@ -3316,7 +3313,9 @@ static void draw_arrange(void)
         return;
     }
     for (int tr = 0; tr < NSEQT; tr++) {
-        int32_t y = 2 + tr * 10 + (tr >= NTRK ? 4 : 0);
+        if (tr == AUX_BRAIN)
+            continue;                                /* (the conductor is hidden) */
+        int32_t y = 2 + (tr > AUX_BRAIN ? tr - 1 : tr) * 10 + (tr >= NTRK ? 4 : 0);
         int muted = seq.mute >> tr & 1u, pt = seq.ppat[tr] % NPATT, len = tpat(tr)->len, pos = eng_step[tr];
         uint16_t ink = muted ? K_FAINT : K_DIM;
         char nm[8];
@@ -3563,7 +3562,7 @@ static void steps_head(int trk, char *nm, char *t)
         if (ui.rem_fx && PX_VALID(ui.rem_fx - 1))
             s_cat(s_cat(e, PUNCH_NAME[(ui.rem_fx - 1) & 15]), ui.rem_fx - 1 >= PX_MEL ? " (melodic)" : " (drums)");
         else
-            s_cat(e, "play a key on EDIT first");
+            s_cat(e, "play a key");
         return;
     } else
         e = s_cat(t, "chord: ");

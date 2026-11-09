@@ -176,7 +176,7 @@ projnew
 spin ALGO 2
 expect trk 3
 spin ALGO 6
-expect trk 9
+expect trk 10
 # eng_midi_trk follows inst_trk() once a frame (ui_frame)
 wait 20
 midi 9B 3C 64

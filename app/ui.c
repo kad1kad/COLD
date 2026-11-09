@@ -1265,9 +1265,9 @@ static void track_select(int t)
 static void track_step(int e)
 {
     static const uint8_t MIXT[10] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2};
-    static const uint8_t SEQT[11] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_BRAIN, AUX_PUNCH, AUX_WEAVE};
+    static const uint8_t SEQT[9] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_PUNCH};   /* (the conductor and WEAVE are hidden) */
     const uint8_t *L = ui.page == P_MIX ? MIXT : SEQT;
-    int N = ui.page == P_MIX ? 10 : 11, cur = sel_trk(), i, d = e > 0 ? 1 : -1, n = e > 0 ? e : -e;
+    int N = ui.page == P_MIX ? 10 : 9, cur = sel_trk(), i, d = e > 0 ? 1 : -1, n = e > 0 ? e : -e;
     for (i = 0; i < N && L[i] != cur; i++)
         ;
     if (i == N) {                                /* (not in the list: from where it would sit) */
@@ -1481,7 +1481,7 @@ static void key_down(int k)
                 }
             }
             scene_key(k, ui.scene_pg * 16 + w, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
-        } else if (b >= 0 && b < NSEQT) {
+        } else if (b >= 0 && b < NSEQT && b != AUX_BRAIN) {
             ui.kmode[k] = KM_MUTE;
             ui.knote[k] = (uint8_t)b;
             if (is_drum(b))                         /* a kit: muted when let go, unless its sounds were (kit_mute_hold) */
@@ -1826,7 +1826,7 @@ static void page_button(int b)
 {
     if (b != B_GLO && is_fx(sel_trk()))          /* (FX I and FX II are Mix's strips: elsewhere the instrument again) */
         track_select(ui.last_inst);
-    if (is_aux(sel_trk()) && (b == B_ENV || b == B_LFO || (b == B_ARP && sel_trk() == AUX_WEAVE)))
+    if (is_aux(sel_trk()) && (b == B_ENV || b == B_LFO || b == B_ARP))
         track_select(ui.last_inst);              /* (the conductor, the throws, WEAVE have no such page: the track
                                                   * played last, as Mix's FX strips do; each track's weave is its ARP's) */
     if ((b == B_ENV || b == B_LFO) && is_midi(sel_trk()))
@@ -4020,7 +4020,7 @@ static void leds(void)
                 (seq.step_tick & 3u) < 2u)
                 k |= 1u << WHITE_K[seq.cue % 16];        /* the scene cued blinks on the beat */
             for (i = 0; i < NSEQT; i++)              /* a track's black key: off muted, full the selected, mid the rest */
-                if (!(seq.mute >> i & 1u)) {
+                if (i != AUX_BRAIN && !(seq.mute >> i & 1u)) {
                     if ((int)i == trk)
                         k |= 1u << BLACK_K[i];
                     else

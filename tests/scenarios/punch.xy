@@ -12,7 +12,7 @@ shot punch_home.png
 key 0 up
 wait 100
 expect punch_drum 0
-spin ALGO 9
+spin ALGO 8
 expect trk 10
 tap EDIT
 key 1 down

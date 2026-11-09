@@ -170,19 +170,9 @@ expect page Steps
 # the aux tracks' pages
 tap EDIT
 spin ALGO 6
-expect trk 9
-wait 40
-shot brain.png
-turn SELECT 1
-wait 40
-shot brain_routing.png
-spin ALGO 1
+expect trk 10
 wait 40
 shot punch.png
-spin ALGO 1
-expect trk 13
-wait 40
-shot weave_track.png
 spin ALGO 1
 expect trk 1
 # the effects: FX's FX I and FX II pages (not tracks on ALGORITHM)
