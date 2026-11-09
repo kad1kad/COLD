@@ -595,8 +595,6 @@ static int steps_page(int p) { return p == P_STEPS || p == P_BAR; }   /* SEQ's p
 static int is_drum(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_DRUMLINE; }
 static int is_midi(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_MIDI; }   /* (no sound: notes and CCs
                                                                                          * out, synth.h EG_MIDI) */
-static int is_acid(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_ACID; }   /* (its 303's own envelope:
-                                                                                         * no Filter env page) */
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
 static const char *page_name_of(int p, int trk)
 {
@@ -679,7 +677,7 @@ static int kit_x_page(int t)                         /* a kit whose key shown ha
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
-    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
+    return e == EG_RAYON || e == EG_MIDI || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
                                                                                      * sample's loop page: looping) */
            kit_x_page(t);
 }
@@ -694,9 +692,9 @@ static int group_n(int g)
         return is_aux(trk) || is_drum(trk) || pl_type(trk) == PL_OFF ? 1
              : pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? 3 : 2;
     if (b == B_ENV)
-        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : is_acid(trk) ? 2 : 3;   /* a kit: the key's envelope, filter; the
+        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : 3;   /* a kit: the key's envelope, filter; the
                                                            * kit's envelope, filter (a MIDI track: none, page_button
-                                                           * stays; acid: its 303's envelope and filter) */
+                                                           * stays) */
     if (b == B_LFO && is_midi(trk))
         return 1;
     if (b == B_FX && is_midi(trk))
@@ -803,8 +801,6 @@ static int tp_page_param(int p, int k, int trk)
     }
     if (p == P_SUB && !x_page(trk))
         return -1;
-    if (p == P_SUB && k == 0 && home_held() && proj.trk[trk].par[TP_ENGINE] == EG_KNIT)
-        return TP_O2FINE;                            /* knit's osc 2 with HOME held: its fine tune, in cents */
     if (is_drum(trk) && (p == P_PLAYERS || p == P_PLAYERS2 || p == P_PLAYERS3))
         return -1;                                   /* a kit: no player (its page shows it off) */
     if (pl_type(trk) == PL_RAND) {                  /* random: P1..P3, AP1..AP4, octave */
@@ -2205,7 +2201,7 @@ static void page_footer(char *t)
                      : ui.held ? "KNOBS lock the step|SEL held + KNOB clear" : "BLACK pick a key|WHITE its steps");
         else if (ui.page == P_ENGINE)
             s_cat(t, "PRESET next sound|SEL engine");
-        else if (ui.page == P_FILTER && !is_acid(trk))
+        else if (ui.page == P_FILTER)
             s_cat(t, "PRESET filter type|KEYS play");
         else if (ui.page == P_ENV)
             s_cat(t, "KEYS play|REC held: record");
@@ -3795,200 +3791,6 @@ static void pic_rayon(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         }
     }
 }
-static void pic_organ(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    /* the six drawbars stops and pedal pull out (synth.c organ_bars), each from the top as far as its level, its
-     * footage under it; the rotor at the right: a horn turning at rate, as wide as its amount (still at 1) */
-    static const char *const FT[6] = {"16", "8", "4", "2 2/3", "2", "1 1/3"};
-    float bars[6];
-    int32_t bw = 18, gap = 9, bh = h - 22, rx = x0 + w - 24, ry = y0 + bh / 2 + 4, rr = bh / 2 + 2 < 20 ? bh / 2 + 2 : 20;
-    int amt = p[TP_E3] < 1 ? 1 : p[TP_E3] > 8 ? 8 : p[TP_E3], rate = p[TP_E4] < 1 ? 1 : p[TP_E4] > 8 ? 8 : p[TP_E4];
-    organ_bars(p, bars);
-    for (int k = 0; k < 6; k++) {
-        int32_t x = x0 + k * (bw + gap), v = 6 + (int32_t)(bars[k] * (float)(bh - 6) + 0.5f);
-        cv_round(x, y0, bw, bh, 3, K_PANEL2);
-        cv_round(x, y0, bw, v, 3, k == 1 ? K_NOW : K_DIM);
-        cv_rect(x + 3, y0 + v - 4, bw - 6, 2, K_BG);        /* the bar's handle */
-        text_c(x + bw / 2, y0 + bh + 4, &LFONT_XS, FT[k], K_DIM);   /* (12 px always: 27 px apart) */
-    }
-    {
-        float a = amt > 1 ? (float)f * 0.012f * (float)rate : 0.0f;   /* (rate 1..8: 0.5 .. 8 Hz, drawn slower) */
-        float r = 6.0f + (float)(amt - 1) * 2.0f;
-        pen_t ring = {0};
-        for (int i = 0; i <= 32; i++) {
-            float t = (float)i / 32.0f;
-            pen_to(&ring, (float)rx + fm_sin_turns(t + 0.25f) * (float)rr, (float)ry + fm_sin_turns(t) * (float)rr, K_LINE);
-        }
-        cv_linef((float)rx - fm_sin_turns(a + 0.25f) * r, (float)ry - fm_sin_turns(a) * r * 0.4f,
-                 (float)rx + fm_sin_turns(a + 0.25f) * r, (float)ry + fm_sin_turns(a) * r * 0.4f, K_NOW, 2.0f);
-        text_c(rx, y0 + bh + 4, &LFONT_XS, "rotor", K_DIM);
-    }
-}
-/* knit: the wave (saw .. square .. pulse) a line a voice, the voices drifting apart as detune opens (one voice:
- * its slow drift) and fanned up and down as width opens */
-static void pic_knit(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    static const float OFF[7] = {0.0f, 0.3f, -0.3f, 0.6f, -0.6f, 1.0f, -1.0f};
-    int n = p[TP_E3] < 1 ? 1 : p[TP_E3] > 7 ? 7 : p[TP_E3];
-    float wv = (float)p[TP_E1] / 127.0f, mix = wv < 0.5f ? wv * 2.0f : 1.0f, pw = wv < 0.5f ? 0.5f : 0.5f - (wv - 0.5f) * 0.8f;
-    float det = (float)p[TP_E2] / 127.0f, amp = (float)h / 6.0f, fan = (float)p[TP_E4] / 127.0f * ((float)h / 2.0f - amp - 2.0f);
-    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
-    for (int j = n - 1; j >= 0; j--) {          /* the centre one last, on top */
-        pen_t pn = {0};
-        float o = n > 1 ? OFF[j] : 0.0f, drift = n > 1 ? o * det * (float)f / 24.0f : det * 0.1f * fm_sin_turns((float)f / 97.0f);
-        float cy = (float)(y0 + h / 2) - o * fan;
-        uint16_t col = j == 0 ? K_NOW : K_DIM;
-        for (int32_t x = 0; x <= w; x++) {
-            float ph = (float)x / (float)w * 3.0f + drift, fr = ph - fm_floorf(ph);
-            float saw = 1.0f - 2.0f * fr, pulse = fr < pw ? 1.0f : -1.0f;
-            pen_to(&pn, (float)(x0 + x), cy - (saw + (pulse - saw) * mix) * amp, col);
-        }
-    }
-}
-/* acid: three cycles of its wave (saw, or the 303's square) through a resonant low-pass at its cutoff, opened by its env
- * mod as a note's start does: the resonance rings at each edge; the decay's curve dim behind */
-static void pic_acid(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
-{
-    const int sq = p[TP_E1] & 1;
-    const float cut = (float)p[TP_CUT] / 127.0f, res = (float)p[TP_RES] / 127.0f, env = (float)p[TP_FENV] / 127.0f;
-    const float dec = (float)p[TP_D] / 127.0f, amp = (float)h * 0.28f, cy = (float)(y0 + h / 2);
-    const float g = 0.03f + 0.25f * cut * cut + 0.2f * env, q = 2.0f - 1.85f * res;
-    float lo = 0.0f, bp = 0.0f;
-    pen_t pe = {0}, pn = {0};
-    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
-    for (int32_t x = 0; x <= w; x++) {               /* the decay: from the top, falling over 0.2 .. 2 s */
-        float t = (float)x / (float)w;
-        pen_to(&pe, (float)(x0 + x), (float)(y0 + 4) + (float)(h - 8) * (1.0f - fm_expf(-t * (5.0f - 4.0f * dec))), K_LINE);
-    }
-    for (int pass = 0; pass < 2; pass++)             /* (the first pass settles the filter: the second is drawn) */
-        for (int32_t x = 0; x <= w; x++) {
-            float ph = (float)x / (float)w * 3.0f, fr = ph - fm_floorf(ph);
-            float in = sq ? (fr < 0.5f ? 1.0f : -1.0f) : 1.0f - 2.0f * fr, hi;
-            for (int k = 0; k < 2; k++) {            /* a state-variable low-pass, twice a pixel */
-                hi = in - lo - q * bp;
-                bp += g * hi;
-                lo += g * bp;
-            }
-            if (pass)
-                pen_to(&pn, (float)(x0 + x), cy - fm_clampf(lo, -1.6f, 1.6f) * amp, K_NOW);
-        }
-}
-/* cane: the model's instrument. pluck: a string bent at color's place, swinging (longer at a higher timbre); bow:
- * the string and the bow across it at color's place, heavier with timbre; reed and flute: the tube and its
- * holes, the breath's specks at the mouth (fewer as timbre steadies it), the flute's embouchure at color; bell:
- * the bell and its rings (more as timbre lengthens them); drum: the head, its ripples; damp dims the ink */
-static inline float pic_wrap(float x) { return x - fm_floorf(x); }
-static void pic_cane(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    int md = p[TP_E1] < NCANE ? p[TP_E1] : 0;
-    float tb = (float)p[TP_E2] / 127.0f, co = (float)p[TP_E3] / 127.0f, cy = (float)(y0 + h / 2);
-    float xl = (float)(x0 + 8), xr = (float)(x0 + w - 8), xp = xl + (0.1f + 0.8f * co) * (xr - xl);
-    uint16_t ink = p[TP_E4] > 64 ? K_DIM : K_NOW;
-    uint32_t r = 77u ^ (f / 2);
-    pen_t pn = {0};
-    if (md <= 1) {                                   /* a string between its nut and its bridge */
-        float a = (float)h * 0.3f * fm_sin_turns((float)f * 0.09f) * (md ? 0.25f : 0.3f + 0.7f * tb) * pic_lvl;
-        cv_round(x0 + 2, (int32_t)cy - 8, 6, 16, 2, K_DIM);
-        cv_round(x0 + w - 8, (int32_t)cy - 8, 6, 16, 2, K_DIM);
-        pen_to(&pn, xl, cy, ink);
-        if (md == 0) {
-            pen_to(&pn, xp, cy - a, ink);
-        } else {
-            for (int k = 1; k <= 16; k++) {           /* the bowed string's swing, a lens */
-                float t = (float)k / 16.0f;
-                pen_to(&pn, xl + t * (xr - xl), cy - a * fm_sin_turns(t * 0.5f), ink);
-            }
-            cv_round((int32_t)xp - 2 - (int32_t)(tb * 3.0f), y0 + 4, 4 + (int32_t)(tb * 6.0f), h - 8, 3, K_DIM);
-        }
-        pen_to(&pn, xr, cy, ink);
-    } else if (md <= 3) {                            /* a tube, its holes; the breath at its mouth */
-        int32_t th = md == 2 ? 26 : 16, tx = x0 + 34, tw = w - 40;
-        cv_frame(tx, (int32_t)cy - th / 2, tw, th, th / 2, ink, K_BG);
-        for (int k = 0; k < 6; k++)
-            cv_dotf((float)(tx + tw / 3 + k * (tw * 2 / 3 - 12) / 5), cy, md == 2 ? 3.0f : 2.2f, ink);
-        if (md == 2) {                               /* the reed's mouthpiece */
-            pen_to(&pn, (float)tx, cy - 9.0f, ink);
-            pen_to(&pn, (float)(tx - 16), cy - 3.0f, ink);
-            pen_to(&pn, (float)(tx - 16), cy + 3.0f, ink);
-            pen_to(&pn, (float)tx, cy + 9.0f, ink);
-        } else {                                     /* the embouchure, at color's place along the head */
-            cv_round(tx + 6 + (int32_t)(co * 16.0f), (int32_t)cy - 4, 8, 8, 4, K_DIM);
-        }
-        for (int k = 0; k < 4 + (int)((1.0f - tb) * 20.0f); k++) {
-            r = r * 1664525u + 1013904223u;
-            cv_rect(x0 + 2 + (int32_t)((r >> 8) % 26u), (int32_t)cy - 10 + (int32_t)((r >> 20) % 20u), 2, 2, K_DIM);
-        }
-    } else if (md == 4) {                            /* the bell, its clapper swinging, its rings */
-        float bx = (float)(x0 + w / 2), sw = 3.0f * fm_sin_turns((float)f * 0.05f);
-        for (int k = 0; k <= 20; k++) {
-            float t = (float)k / 20.0f, half = 8.0f + 26.0f * t * t * t + 6.0f * t;
-            pen_to(&pn, bx - half, (float)(y0 + 10) + t * (float)(h - 26), ink);
-        }
-        pen_up(&pn);
-        for (int k = 0; k <= 20; k++) {
-            float t = (float)k / 20.0f, half = 8.0f + 26.0f * t * t * t + 6.0f * t;
-            pen_to(&pn, bx + half, (float)(y0 + 10) + t * (float)(h - 26), ink);
-        }
-        cv_line(x0 + w / 2 - 40, y0 + h - 16, x0 + w / 2 + 40, y0 + h - 16, ink);
-        cv_dotf(bx + sw, (float)(y0 + h - 10), 3.5f, K_DIM);
-        for (int k = 0; k < 1 + (int)(tb * 4.0f); k++) {
-            float rr = 46.0f + (float)((int)(f * 2u + (uint32_t)k * 9u) % 36);
-            cv_rect((int32_t)(bx + rr), y0 + h / 2 - 4, 1, 8, K_FAINT);
-            cv_rect((int32_t)(bx - rr), y0 + h / 2 - 4, 1, 8, K_FAINT);
-        }
-    } else {                                         /* the drum: its head, the ripples a strike sends */
-        float dx = (float)(x0 + w / 2), dy = (float)(y0 + 26), ex = 60.0f, ey = 12.0f;
-        for (int k = 0; k <= 32; k++)
-            pen_to(&pn, dx + ex * fm_sin_turns((float)k / 32.0f + 0.25f), dy + ey * fm_sin_turns((float)k / 32.0f), ink);
-        cv_line((int32_t)(dx - ex), (int32_t)dy, (int32_t)(dx - ex + 6), y0 + h - 6, ink);
-        cv_line((int32_t)(dx + ex), (int32_t)dy, (int32_t)(dx + ex - 6), y0 + h - 6, ink);
-        cv_line((int32_t)(dx - ex + 6), y0 + h - 6, (int32_t)(dx + ex - 6), y0 + h - 6, ink);
-        {
-            float g = (float)(f % 24u) / 24.0f;
-            pen_up(&pn);
-            for (int k = 0; k <= 24; k++)
-                pen_to(&pn, dx + g * ex * fm_sin_turns((float)k / 24.0f + 0.25f), dy + g * ey * fm_sin_turns((float)k / 24.0f),
-                       co > 0.5f ? K_DIM : K_FAINT);
-        }
-    }
-}
-/* voile: the voice's spectrum: its formants as peaks over the note's harmonics (vosim: timbre's and color's;
- * vowel and choir: the vowel's along timbre, color moving them; whisper: two, sharper with timbre, apart by
- * color), the breath as specks under them */
-static void pic_voile(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    int md = p[TP_E1] < NVOILE ? p[TP_E1] : 0, np = md == 0 || md == 3 ? 2 : md == 1 ? 3 : 5;
-    float tb = (float)p[TP_E2] / 127.0f, co = (float)p[TP_E3] / 127.0f, cx[5], wd, base = (float)(y0 + h - 4);
-    uint32_t r = 31u ^ (f / 3);
-    pen_t pn = {0};
-    if (md == 0) {
-        cx[0] = tb;
-        cx[1] = co;
-    } else if (md == 3) {
-        cx[0] = 0.3f;
-        cx[1] = fm_clampf(0.3f + (co - 0.5f) * 0.9f, 0.02f, 0.98f);
-    } else {
-        float sh = 0.8f + 0.4f * co;
-        for (int k = 0; k < np; k++)
-            cx[k] = fm_minf((0.08f + 0.19f * (float)k + 0.08f * fm_sin_turns(tb * 0.8f + (float)k * 0.31f)) * sh, 0.97f);
-    }
-    wd = md == 3 ? 0.012f + (1.0f - tb) * 0.05f : 0.035f;
-    if (md != 3)
-        for (int32_t x = 6; x < w; x += 12)          /* the harmonics */
-            cv_rect(x0 + x, y0 + 30, 1, h - 34, K_PANEL2);
-    for (int32_t x = 0; x <= w; x += 2) {
-        float t = (float)x / (float)w, y = 0.0f;
-        for (int k = 0; k < np; k++) {
-            float d = (t - cx[k]) / wd;
-            y += fm_expf(-d * d) / (1.0f + 0.5f * (float)k);
-        }
-        pen_to(&pn, (float)(x0 + x), base - fm_minf(y, 1.2f) * (float)(h - 14), K_NOW);
-    }
-    for (int k = 0; k < p[TP_E4] / 3; k++) {
-        r = r * 1664525u + 1013904223u;
-        cv_rect(x0 + (int32_t)((r >> 8) % (uint32_t)w), y0 + h - 4 - (int32_t)((r >> 20) % 24u), 2, 2, K_DIM);
-    }
-}
 /* the sample engine: the sample's waveform (each column its lowest and highest), the region that plays bright,
  * the rest faint, the loop's ends marked; its name, root and the mode above */
 static int8_t smp_col_lo[200], smp_col_hi[200];
@@ -4082,62 +3884,6 @@ static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
         else
             cv_round(x0 + xa - 3 < x0 ? x0 : x0 + xa - 3, wy, 6, 6, 3, K_TEXT);
     }
-}
-
-/* the slice engine: the loop's waveform cut by its slice lines, each slice's gated part drawn and what the gate
- * leaves out faint; the slice playing tinted and bright, a line where it plays; a dot on slice 1 (the root's).
- * Above: the loop's name and bars (or its own speed), the count or the slice playing */
-static void pic_slice(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, int trk)
-{
-    int idx = p[TP_E1] < smp_slots() ? p[TP_E1] : smp_slots() - 1, ns = sl_count(p[TP_E2]), sl = -1, on;
-    const smp_t *sm = smp_get(idx);
-    int32_t wy = y0 + 20, wh = h - 22, cy = wy + wh / 2, pos = 0, px = -1;
-    int32_t gate = (p[TP_E4] > 127 ? 127 : p[TP_E4]) * 1000 / 127;
-    char t[40], *e;
-    if (gate < 20)
-        gate = 20;                                   /* (as the engine: 2 % at least) */
-    if (w > 200)
-        w = 200;
-    if (!sm) {
-        text_c(x0 + w / 2, cy - 16, &FONT_S, smp_name(idx), K_DIM);
-        text_c(x0 + w / 2, cy + 4, &FONT_XS, smp_missing(idx), K_DIM);
-        return;
-    }
-    e = s_cat(t, sm->name);
-    if (sm->bars) {
-        e = num_s(sm->bars, s_cat(e, ", "));
-        e = s_cat(e, sm->bars > 1 ? " bars" : " bar");
-    } else {
-        e = s_cat(e, ", own speed");
-    }
-    text_fit(x0, y0 + 2, &FONT_XS, t, w - 76, K_TEXT);
-    on = engine_slice_now(trk, &sl, &pos) && sl >= 0 && sl < ns;
-    if (on) {
-        e = num_s((uint32_t)sl + 1u, s_cat(t, "slice "));
-        num_s((uint32_t)ns, s_cat(e, " of "));
-        px = (int32_t)((float)pos * (float)w / (float)sm->n);
-    } else {
-        s_cat(num_s((uint32_t)ns, t), " slices");
-    }
-    text_r(x0 + w, y0 + 2, &FONT_XS, t, on ? K_TEXT : K_DIM);
-    smp_columns(idx, sm, w);
-    if (on)
-        cv_rect(x0 + sl * w / ns, wy, (sl + 1) * w / ns - sl * w / ns, wh, K_TINT);
-    cv_rect(x0, cy, w, 1, K_LINE);
-    for (int32_t x = 0; x < w; x++) {
-        int k = x * ns / w;
-        int32_t a = k * w / ns, b = (k + 1) * w / ns, in = (x - a) * 1000 < gate * (b - a);
-        int32_t yl = cy - smp_col_hi[x] * (wh / 2 - 1) / 127, yh = cy - smp_col_lo[x] * (wh / 2 - 1) / 127;
-        cv_rect(x0 + x, yl, 1, yh - yl + 1, !in ? K_FAINT : on && k == sl ? K_NOW : K_DIM);
-    }
-    for (int k = 1; k < ns; k++) {                   /* the cuts: a gap through the wave, a tick above and below */
-        cv_rect(x0 + k * w / ns, wy, 1, wh, K_BG);
-        cv_rect(x0 + k * w / ns, wy, 1, 3, K_LINE);
-        cv_rect(x0 + k * w / ns, wy + wh - 3, 1, 3, K_LINE);
-    }
-    if (px >= 0 && px < w)
-        cv_rect(x0 + px, wy, 1, wh, K_TEXT);
-    cv_round(x0, wy, 6, 6, 3, K_TEXT);              /* slice 1 */
 }
 
 /* the drumline: eleven pads, each key's model, the shown one ringed, hits flashing */
@@ -4239,12 +3985,10 @@ static void draw_engine(void)
     uint32_t h;
     pic_clock(trk);
     h = hash_u(hash_u(2166136261u, 0xE0u), (uint32_t)trk | (uint32_t)eg << 4 | (uint32_t)ui.dsound << 8 |
-                                          (eg == EG_SAMPLE || eg == EG_SLICE ? 0u : (pic_f / 2) << 12));
+                                          (eg == EG_SAMPLE ? 0u : (pic_f / 2) << 12));
     h = hash_u(h, (uint32_t)(pic_lvl * 32.0f));
     for (int i = 0; i < 4; i++)
         h = hash_u(h, p[TP_E1 + i]);
-    if (eg == EG_ACID)                               /* (its picture draws its filter page too) */
-        h = hash_u(h, (uint32_t)p[TP_CUT] | (uint32_t)p[TP_RES] << 8 | (uint32_t)p[TP_FENV] << 16 | (uint32_t)p[TP_D] << 24);
     if (eg == EG_MIDI) {                             /* (the second page's values, the eight CCs, which page; a note
                                                       * out: the port lit, easing out) */
         eng_midi_hit[trk] = (uint8_t)(eng_midi_hit[trk] > 20 ? eng_midi_hit[trk] - 20 : 0);
@@ -4254,17 +3998,10 @@ static void draw_engine(void)
         for (int k = 0; k < 8; k++)
             h = hash_u(h, (uint32_t)p[k < 4 ? TP_E1 + k : TP_X1 + k - 4] | (uint32_t)p[midi_cc_par(k)] << 8 |
                               (uint32_t)ui.page << 16);
-    if (eg == EG_SAMPLE || eg == EG_SLICE)           /* (the bank: an upload changes what the picture shows) */
+    if (eg == EG_SAMPLE)                             /* (the bank: an upload changes what the picture shows) */
         h = hash_u(h, (uint32_t)smp_user_count() << 16 ^ smp_user_bytes());
     if (eg == EG_SAMPLE)                             /* (its loop page's knobs mark the loop) */
         h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)ui.page << 16);
-    if (eg == EG_SLICE) {                            /* the slice playing and where (a column of the picture) */
-        int sl;
-        int32_t pos;
-        const smp_t *sm = smp_get(p[TP_E1]);
-        if (engine_slice_now(trk, &sl, &pos) && sm)
-            h = hash_u(h, (uint32_t)(sl + 1) | (uint32_t)((float)pos * 200.0f / (float)sm->n) << 8);
-    }
     if (eg == EG_DRUMLINE)
         for (int k = 0; k < DL_NSOUND; k++) {
             eng_drum_hit[k] = (uint8_t)(eng_drum_hit[k] > 10 ? eng_drum_hit[k] - 10 : 0);   /* the flash eases out */
@@ -4290,14 +4027,8 @@ static void draw_engine(void)
     switch (eg) {
     case EG_JACQUARD: pic_wave(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_RAYON: pic_rayon(20, 24, 200, PIC_H, p, pic_f); break;
-    case EG_BELLOWS: pic_organ(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_SAMPLE: pic_sample(20, 24, 200, PIC_H, p); break;
-    case EG_SLICE: pic_slice(20, 24, 200, PIC_H, p, trk); break;
-    case EG_CANE: pic_cane(20, 24, 200, PIC_H, p, pic_f); break;
-    case EG_VOILE: pic_voile(20, 24, 200, PIC_H, p, pic_f); break;
-    case EG_KNIT: pic_knit(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB, eng_midi_hit[trk]); break;
-    case EG_ACID: pic_acid(20, 24, 200, PIC_H, p); break;
     default:                                         /* the kit (large type: the pads fill the band, 4 px in) */
         if (LARGE)
             pic_drumline(2, 26, 236, MAIN_H - 26, p, pic_f);
@@ -4604,7 +4335,7 @@ static void draw_play(void)
     char t[40];
     if (!begin_main(h))
         return;
-    const char *sub = p[TP_ENGINE] == EG_ACID ? "one voice, held notes slide" : p[TP_VMODE] % 3 == VM_POLY ? "up to 6 voices on the track"
+    const char *sub = p[TP_VMODE] % 3 == VM_POLY ? "up to 6 voices on the track"
                     : p[TP_VMODE] % 3 == VM_MONO ? "one voice, every key restarts it" : "one voice, held keys glide";
     int32_t ty;
     if (LARGE)                                       /* (large type: the line on the title's, right) */
@@ -4665,102 +4396,17 @@ static void draw_rayon_fall(void)
     }
     cv_blit(0, MAIN_Y);
 }
-/* knit's Sub page: its layers stacked, each as tall as its level: the wave (faint: the first page's), osc 2 at its
- * interval, the sub an octave down, the noise */
-static void draw_knit_x(void)
-{
-    int trk = sel_trk();
-    const uint8_t *p = par_now(trk);
-    int st = clampi((int)p[TP_X1] - 64, -24, 24);
-    uint32_t h = hash_u(hash_u(2166136261u, 0xA4u), (uint32_t)trk | (uint32_t)p[TP_X1] << 4 | (uint32_t)p[TP_X2] << 12 |
-                                                    (uint32_t)p[TP_X3] << 20);
-    float wv = (float)p[TP_E1] / 127.0f, mix = wv < 0.5f ? wv * 2.0f : 1.0f, pw = wv < 0.5f ? 0.5f : 0.5f - (wv - 0.5f) * 0.8f;
-    float ratio = fm_exp2f((float)st * (1.0f / 12.0f)), lv[4] = {1.0f, (float)p[TP_X2] / 127.0f, (float)p[TP_X3] / 127.0f,
-                                                                   (float)p[TP_X4] / 127.0f};
-    static const char *const NM[4] = {"wave", "osc 2", "sub", "noise"};
-    uint32_t r = 12345u;
-    char t[24];
-    h = hash_u(h, p[TP_X4]);
-    h = hash_u(h, p[TP_E1]);
-    if (!begin_main(h))
-        return;
-    for (int l = 0; l < 4; l++) {
-        pen_t pn = {0};
-        float cy = (float)MY(14 + l * 26), amp = (float)MY(10) * lv[l];   /* (large type: the rows closer) */
-        cv_text(8, (int32_t)cy - LY(6, 7), LY(&FONT_XS, F_CAP), NM[l], lv[l] > 0.0f ? K_DIM : K_FAINT);
-        for (int32_t x = 0; x <= 170; x++) {
-            float ph = (float)x / 170.0f * 3.0f * (l == 1 ? ratio : l == 2 ? 0.5f : 1.0f), fr = ph - fm_floorf(ph), y;
-            if (l == 2)
-                y = fm_sin_turns(ph);
-            else if (l == 3)
-                r = r * 1664525u + 1013904223u, y = (float)(int32_t)r * (1.0f / 2147483648.0f);
-            else
-                y = (1.0f - 2.0f * fr) + ((fr < pw ? 1.0f : -1.0f) - (1.0f - 2.0f * fr)) * mix;
-            pen_to(&pn, (float)(56 + x), cy - y * amp, l == 0 ? K_FAINT : K_NOW);
-        }
-    }
-    if (st)
-        num_i(st, s_cat(t, st > 0 ? "osc 2 +" : "osc 2 ")), s_cat(t + s_len(t), " st");
-    else
-        s_cat(t, "osc 2 in unison");
-    text_r(230, LY(100, 64), F_CAP, t, K_DIM);
-    cv_blit(0, MAIN_Y);
-}
-/* acid's Sub page: its drive (TP_X1 amount, TP_X2 off / soft / rat; bass303.c drive_block) on two cycles of a sine,
- * the input faint and what comes out bright, each scaled to the picture's height (the shape, not the level) */
-static void draw_acid_x(void)
-{
-    int trk = sel_trk();
-    const uint8_t *p = par_now(trk);
-    int ty = p[TP_X2] % 3;
-    float d = (float)p[TP_X1] / 127.0f, g = ty == 1 ? fm_exp2f(d * 24.0f * 0.166096405f) : 1.0f + d * 40.0f;
-    float cy = (float)MY(54), amp = (float)MY(34), y[171], top = 0.0f;
-    uint32_t h = hash_u(hash_u(2166136261u, 0xA7u), (uint32_t)trk | (uint32_t)p[TP_X1] << 4 | (uint32_t)ty << 12 |
-                                                    (uint32_t)p[TP_X3] << 16);
-    pen_t a = {0}, b = {0};
-    char t[32];
-    if (!begin_main(h))
-        return;
-    for (int x = 0; x <= 170; x++) {                 /* the curve, then its height to scale it to the picture */
-        float v = fm_sin_turns((float)x / 85.0f), u = v * g;
-        if (ty == 1)
-            u = fm_tanhf(u + 0.15f) - 0.14888503f;   /* soft: tanh, a little asymmetric */
-        else if (ty == 2) {
-            float x2 = u * u, sq = fm_rsqrtf(1.0f + x2 * x2);
-            u *= sq * fm_rsqrtf(sq);                 /* rat: x / (1 + x^4)^(1/4) */
-        } else
-            u = v;
-        y[x] = u;
-        top = fm_maxf(top, fm_fabsf(u));
-    }
-    cv_rect(56, (int32_t)cy, 171, 1, K_LINE);
-    for (int x = 0; x <= 170; x++) {
-        pen_to(&a, (float)(56 + x), cy - fm_sin_turns((float)x / 85.0f) * amp, K_FAINT);
-        pen_to(&b, (float)(56 + x), cy - y[x] / (top > 0.0f ? top : 1.0f) * amp, ty && d > 0.0f ? K_NOW : K_DIM);
-    }
-    cv_text(8, MY(20), F_CAP, "in", K_FAINT);
-    cv_text(8, MY(34), F_CAP, "out", ty && d > 0.0f ? K_NOW : K_DIM);
-    if (!ty || d <= 0.0f)
-        s_cat(t, "drive off");
-    else
-        num_i((int32_t)(d * 100.0f + 0.5f), s_cat(s_cat(s_cat(t, "drive "), ty == 1 ? "soft" : "rat"), " ")), s_cat(t + s_len(t), " %");
-    cv_text(8, LY(100, 64), F_CAP, t, K_DIM);
-    text_r(230, LY(100, 64), F_CAP, "shaper: the square's edge", K_FAINT);
-    cv_blit(0, MAIN_Y);
-}
-/* the Sub page: the engine's second page of knobs (TP_X1..X4), knit's layers, rayon's fall or acid's drive */
+/* the Sub page: the engine's second page of knobs (TP_X1..X4): rayon's fall, the sample's loop, MIDI's knobs 5..8 */
 static void draw_sub(void)
 {
     int eg = proj.trk[sel_trk()].par[TP_ENGINE];
     if (eg == EG_RAYON)
         draw_rayon_fall();
-    else if (eg == EG_ACID)
-        draw_acid_x();
     else if (eg == EG_SAMPLE || eg == EG_MIDI)
         draw_engine();                           /* (the sample's loop page: the waveform, its loop marked; MIDI's
                                                   * knobs 5..8: its eight bars) */
     else
-        draw_knit_x();
+        draw_engine();
 }
 /* a drum key's own envelope: its lag (flat), the attack's rise, the hold, the decay's fall (or, off, the level
  * held to the right edge: the sound's own length rules), the key's colour under it */
@@ -4898,27 +4544,6 @@ static void draw_env(int filter)
     int n = 0;
     pen_t pn = {0};
     h = hash_u(h, p[b + 3] | (uint32_t)drum << 8);
-    if (is_acid(trk) && !filter) {                   /* the 303's: over 3 s, the filter's opening (its attack's rise,
-                                                      * its decay), an accented note's dimmer, the held note's level */
-        const float ta = 0.3f * fm_exp2f(p[TP_A] * (13.28771238f / 127.0f)), td = 200.0f * fm_exp2f(p[TP_D] * (3.321928095f / 127.0f));
-        const float tc = 30.0f + p[TP_S] * (2970.0f / 127.0f), tl = 30.0f + p[TP_R] * (2970.0f / 127.0f);
-        pen_t pa = {0}, pc = {0}, pl = {0};
-        if (!begin_main(hash_u(h, 0xAC1Du)))
-            return;
-        cv_rect(16, 16 + 84, 208, 1, K_LINE);
-        for (int32_t xi = 0; xi <= 208; xi++) {
-            float ms = (float)xi * (3000.0f / 208.0f);
-            float rise = 1.0f - fm_expf(-ms / ta), fl = rise * fm_expf(-ms / td), ac = fm_expf(-ms / tc);
-            pen_to(&pl, x0 + (float)xi, base - hh * 0.9f * fm_expf(-ms / tl), K_LINE);
-            pen_to(&pc, x0 + (float)xi, base - hh * ac * (1.0f - fm_expf(-ms / 15.0f)), K_DIM);
-            if (xi)
-                cv_rect((int32_t)x0 + xi, (int32_t)(base - hh * fl + 1.5f), 1, (int32_t)(hh * fl), K_TINT);
-            pen_to(&pa, x0 + (float)xi, base - hh * fl, K_NOW);
-        }
-        cv_text(16, 16 + 84 + 3, &FONT_XS, "filter; dim: accented; line: the note's level", K_DIM);
-        cv_blit(0, MAIN_Y);
-        return;
-    }
     if (!begin_main(h))
         return;
     cv_rect(16, 16 + 84, 208, 1, K_LINE);
@@ -5026,7 +4651,7 @@ static void draw_filter(void)
     }
     cv_rect(fc, y0, 1, hh, K_FAINT);
     cv_text(x0, y0 + hh + 3, &FONT_XS, tp_info_par(TP_FTYPE, p)->names[ft], K_DIM);
-    text_r(x0 + w, y0 + hh + 3, &FONT_XS, is_acid(trk) ? "" : p[TP_KTRK] ? "key tracking on" : "", K_DIM);
+    text_r(x0 + w, y0 + hh + 3, &FONT_XS, p[TP_KTRK] ? "key tracking on" : "", K_DIM);
     cv_blit(0, MAIN_Y);
 }
 /* the instrument's character stage: its type, what it does, and a picture of it (synth.c char_picture: the

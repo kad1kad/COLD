@@ -259,11 +259,8 @@ static int loop_from(const tpat_t *p)
     return f;
 }
 static int is_drum(const seq_t *s, int t) { return t < NTRK && s->par[t][TP_ENGINE] == EG_DRUMLINE; }
-static int is_slice(const seq_t *s, int t) { return t < NTRK && s->par[t][TP_ENGINE] == EG_SLICE; }
-/* a percussive track for the throws: the kit, or a slice track (a break's parts). A slice track plays notes (a
- * note picks a slice) but takes the drums' throws: their octave, the drum fills on its own slices (fill_slices),
- * an octave up (the engine raises its pitch: the note would pick another slice) */
-static int is_perc(const seq_t *s, int t) { return is_drum(s, t) || is_slice(s, t); }
+/* a percussive track for the throws: the kit */
+static int is_perc(const seq_t *s, int t) { return is_drum(s, t); }
 static int ts_halves(const tpat_t *p) { return TS_HALVES[p->scale < NTS ? p->scale : TS_1]; }
 
 float seq_tempo(const seq_t *s) { return s->ext ? s->ext_bpm : s->bpm; }
@@ -811,7 +808,7 @@ static int step_note(seq_t *s, int t, int note, int tv)
         note = brain_note(s, t, note);
     if (tv >= 2)
         note = tonal(s, t, note, tv);
-    if (fx_on(s, t, PX_OCTAVE) && !is_slice(s, t))   /* (a slice track: up, the engine's pitch) */
+    if (fx_on(s, t, PX_OCTAVE))
         note -= 12;
     return clamp_note(note);
 }
@@ -2085,39 +2082,7 @@ static void fill_collect(seq_t *s, int t)
         }
 }
 
-/* a slice track's fill sounds: its pattern's own slices in the kit's places, fill_notes[0] the kick (the note on
- * a downbeat: sixteenth 0 or 8 of the bar), [1] the snare (a backbeat: 4 or 12), [2] the hat (an off-beat eighth:
- * 2, 6, 10, 14); a place the pattern leaves empty takes its lowest, middle or highest note. nfill 0: an empty
- * pattern (its fills are silent) */
-static void fill_slices(seq_t *s, int t)
-{
-    seq_trk_t *tr = &s->t[t];
-    const tpat_t *tp = tpat(s, t);
-    uint8_t got[3] = {0, 0, 0};
-    int len = pat_len(tp), p, i, n;
-    fill_collect(s, t);
-    if (!tr->nfill)
-        return;
-    for (p = 0; p < len; p++) {
-        int six = step_six(tp, p), k, lo = 0;
-        if (six < 0 || (six & 1))
-            continue;
-        k = (six & 7) == 0 ? 0 : (six & 7) == 4 ? 1 : 2;
-        if (got[k])
-            continue;
-        for (i = 0; i < SN; i++)
-            if ((n = tp->st[p].note[i]) && (!lo || n < lo))
-                lo = n;
-        got[k] = (uint8_t)lo;
-    }
-    n = tr->nfill;
-    tr->fill_notes[0] = got[0] ? got[0] : tr->fill_notes[0];
-    tr->fill_notes[1] = got[1] ? got[1] : tr->fill_notes[n / 2];
-    tr->fill_notes[2] = got[2] ? got[2] : tr->fill_notes[n - 1];
-    tr->nfill = 3;
-}
-
-/* a drum fill's hit: the kit's sound (0 kick, 1 snare, 2 hat), or a slice track's slice in its place */
+/* a drum fill's hit: the kit's sound (0 kick, 1 snare, 2 hat) */
 static void fill_hit(seq_t *s, int t, int sound, int vel, const seq_sink_t *o)
 {
     uint32_t half = six_q8(s) / 2u;
@@ -3096,9 +3061,7 @@ static void punch_update(seq_t *s, const seq_sink_t *o)
         }
         if (fl) {
             int kind = fx_on(s, t, PX_BUILD) ? 1 : fx_on(s, t, PX_FLOOR) ? 2 : 3;
-            if (!tr->fill_on && is_slice(s, t))
-                fill_slices(s, t);
-            else if (!tr->fill_on && !is_drum(s, t))
+            if (!tr->fill_on && !is_drum(s, t))
                 fill_collect(s, t);
             if (!tr->fill_on || kind != tr->fill_kind)
                 tr->fill_i = 0;

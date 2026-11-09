@@ -125,7 +125,7 @@ static void aux_defaults(void)
     int t, k;
     for (t = NTRK; t < NALLTRK; t++) {
         uint8_t *p = proj.trk[t].par;
-        sound_default(p, EG_KNIT);                       /* mix and sends at their defaults */
+        sound_default(p, EG_RAYON);                      /* mix and sends at their defaults */
         for (k = TP_ENGINE; k <= TP_E4; k++)
             p[k] = 0;
         p[TP_LEVEL] = 100;
@@ -182,7 +182,7 @@ void project_random_sounds(uint32_t seed)
         if (pick < 0)
             continue;
         apply_preset(&proj.trk[t], pick);
-        if (VMODE[t - 1] != 0xFF && PRESETS[pick].par[TP_ENGINE] != EG_ACID)   /* (acid: its one mode) */
+        if (VMODE[t - 1] != 0xFF)
             proj.trk[t].par[TP_VMODE] = VMODE[t - 1];
     }
 }
@@ -331,6 +331,11 @@ static int settings_valid(settings_t *s)
         s->trk[t].name[NAME_LEN - 1] = 0;
         if (t < NTRK && p[TP_ENGINE] >= NENGINE)
             return 0;
+        if (t < NTRK && eg_retired(p[TP_ENGINE])) {   /* a cut engine (synth.h): rayon's plain sound instead, the mix kept */
+            const uint8_t keep[4] = {p[TP_LEVEL], p[TP_PAN], p[TP_SEND1], p[TP_SEND2]};
+            sound_default(p, EG_RAYON);
+            p[TP_LEVEL] = keep[0], p[TP_PAN] = keep[1], p[TP_SEND1] = keep[2], p[TP_SEND2] = keep[3];
+        }
         if (t >= AUX_FX1 && p[TP_ENGINE] >= NFXPICK)
             return 0;
         if (t < NTRK)

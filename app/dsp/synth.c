@@ -19,11 +19,9 @@
  * no malloc, no stack buffer over 128 bytes in the render path (the audio interrupt's stack).
  *
  * knit's unison is NuSaw's (the NuSaw plugin, Copyright (c) Charles Vestal, MIT; through its FM-1 port, fm1-nusaw):
- * the detune offsets and curve, the pans, the keytracked high-pass. cane and voile are Mutable Instruments Braids'
- * models (Copyright 2012 Emilie Gillet, MIT), ported in dsp/braids.h (MIT), included below. acid is X0X's TB-303
- * (dsp/bass303.c, GPL-3.0-only: its own unit, so a LOOM-8 built with it is GPL-3.0 as a whole). */
+ * the detune offsets and curve, the pans, the keytracked high-pass. (cane and voile, Mutable Instruments Braids' models,
+ * acid, X0X's TB-303, and the slice engine were removed from COLD in 2026-11.) */
 #include "synth.h"
-#include "bass303.h"
 #include "fastmath.h"
 #include "drumline.h"
 #include "sample.h"
@@ -43,7 +41,7 @@ static const uint8_t E_GLIDE[NENGINE] = {
     0xE, /* jacquard: scan, bend, ripple (not the table) */ 0x0, /* bellows: four switches */
     0xE, /* cane: timbre, color, damp */ 0xE,               /* voile: timbre, color, breath */
     0x0, 0x0, 0x0, 0x0,                                    /* sample, slice (where a note starts), the kit, midi */
-    0x0};                                                  /* acid (bass303_set: its own) */
+    0x0};                                                  /* acid (retired) */
 static inline float glide_to(float from, float to)
 {
     float d = to - from;
@@ -62,8 +60,8 @@ static inline float glide_to(float from, float to)
 /* ------------------------------------------------------------------ names --- */
 const char *const RL_NAME[NRL] = {"bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice",
                                   "chord", "fx", "drum", "loop"};
-const char *const EG_NAME[NENGINE] = {"knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice",
-                                      "kit", "midi", "acid"};
+const char *const EG_NAME[NENGINE] = {"-", "rayon", "jacquard", "-", "-", "-", "sample", "-",
+                                      "kit", "midi", "-"};
 const char *const EG_KNOB[NENGINE][4] = {
     {"wave", "detune", "voices", "width"}, {"bright", "ratio", "edge", "tine"},     {"table", "scan", "bend", "ripple"},
     {"stops", "pedal", "rotor", "rate"},   {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"},
@@ -74,7 +72,7 @@ const char *const EG_KNOB[NENGINE][4] = {
  * models a name each (synth.h NCANE ...) */
 static const uint8_t EG_DEF[NENGINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 40, 0, 0},  {3, 4, 2, 5},
                                            {0, 64, 64, 0}, {2, 0, 64, 0},  {5, 0, 127, SM_ONESHOT}, {SMP_BREAK, 1, 64, 127},
-                                           {0, 0, 0, 0}, {64, 64, 64, 64}, {0, 64, 21, 64}};   /* (acid: X0X's) */
+                                           {0, 0, 0, 0}, {64, 64, 64, 64}, {0, 0, 0, 0}};   /* (acid: retired) */
 static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
 static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};   /* FT_DYNAMIC: no
                                                                           * filter on a synth track; the kit's
@@ -107,12 +105,7 @@ static const char *const AMPP_N[4] = {"volume", "pitch", "pan", "character"};
 static const char *const OCT_N[5] = {"-2", "-1", "0", "+1", "+2"};
 static const char *const CTYPE_N[NCT] = {"off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"};
 static const char *const SMODE_N[NSM] = {"one-shot", "loop", "reverse", "ping-pong"};
-static const char *const SLICES_N[SL_NCOUNT] = {"4", "8", "16", "32"};
 static const char *const DFTYPE_N[NDF] = {"off", "lp", "hp", "bp"};
-static const char *const CANE_N[NCANE] = {"pluck", "bow", "reed", "flute", "bell", "drum"};   /* (dsp/braids.h) */
-static const char *const VOILE_N[NVOILE] = {"vosim", "vowel", "choir", "whisper"};
-static const char *const ACIDW_N[2] = {"saw", "square"};
-static const char *const ACIDD_N[3] = {"off", "soft", "rat"};
 /* ring: the modulator's ratios to the note, tone / 8 */
 static const float RING_R[16] = {0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.414f, 1.5f, 1.75f, 2.0f, 2.5f, 2.76f, 3.0f, 3.5f,
                                  4.0f, 5.0f, 7.0f};
@@ -163,8 +156,6 @@ typedef struct {
                                        * bit 1: started since the last render, its first configuration due there */
     uint8_t vi;                       /* the voice's index (its sample cache, smp_vc) */
     float cost_m;                     /* its render's measured time, clock ticks a frame (a running mean; 0 none yet) */
-    uint8_t tws, tws_pend;            /* cane: the line slot it plays from, and its pending note's (CN_NONE) */
-    uint8_t as, as_pend;              /* acid: its 303's slot (acid_mem), and its pending note's (ACID_NONE) */
     float amp_cur, amp_step;          /* the amp level, ramped inside the sub-block */
     float steal_gain, sg_step;
     float glc, grc, gl_step, gr_step; /* the dry gains, ramped */
@@ -180,8 +171,6 @@ typedef struct {
     float env_in[8];                  /* the envelope knobs the coefficients were made from */
     float pan_in, pan_l, pan_r;       /* the pan the gains were made from, and those gains */
     float pitch_in, e_in[4];          /* the pitch and the knobs the frequency and increments were made from */
-    float kp_w;                       /* knit_prep's pitch-free parts were made from: the width and the voices */
-    int8_t kp_n;                      /* (0 or -1: none yet; knit_init) */
     float o[16];                      /* the engine's state */
     float cz[8];                      /* the character stage's: low-pass / hold L R, DC L R, phase, -, the
                                        * sampler's output filter L R (tape: cz[4..5] its wow's phases) */
@@ -258,18 +247,6 @@ static inline uint32_t xs(uint32_t *r)
     return x;
 }
 static inline float frand(uint32_t *r) { return (float)(int32_t)xs(r) * (1.0f / 2147483648.0f); }   /* -1..1 */
-static inline float blep(float t, float dt, float idt)      /* the PolyBLEP residual at phase t, step dt */
-{
-    if (t < dt) {
-        t *= idt;
-        return t + t - t * t - 1.0f;
-    }
-    if (t > 1.0f - dt) {
-        t = (t - 1.0f) * idt;
-        return t * t + t + t + 1.0f;
-    }
-    return 0.0f;
-}
 static inline float wrap1(float p) { return p - fm_floorf(p); }
 static inline float step1(float p, float d)      /* a phase accumulator: p + d wrapped to [0, 1), d < 1 */
 {
@@ -351,9 +328,6 @@ static inline float pf(const synth_t *s, int trk, int p, int dest, float off)
 /* each: eng_prep() turns c.e[] / c.ek[] and c.freq into c.ex[] once a chunk (or after a steal);
  * eng_run() writes m <= SUB raw samples to xl (and xr when c.stereo); the amplitude of a cycle is
  * about 1; eng_chunk() moves the engine's own slow parts every chunk */
-static void knit_init(voice_t *v);
-static void cn_init(voice_t *v);
-static void vo_init(voice_t *v);
 static void eng_init(voice_t *v)
 {
     int i;
@@ -363,41 +337,10 @@ static void eng_init(voice_t *v)
     for (i = 0; i < SMP_NXF; i++)                /* (a crossfade it held: free) */
         if (smp_xo[i] == v->vi)
             smp_xo[i] = NVOICE;
-    if (v->engine == EG_BELLOWS)
-        for (i = 0; i < 6; i++)
-            v->o[i * 2] = 1.0f;                  /* the rotating phasors start at 1 + 0i */
-    if (v->engine == EG_KNIT)
-        knit_init(v);
     if (v->engine == EG_RAYON)
         v->o[5] = v->o[7] = 1.0f;                /* rayon: its fall and its tine start full */
-    if (v->engine == EG_BELLOWS)
-        v->o[13] = 1.0f, v->o[14] = 0.0f;        /* the rotor's gain and its ramp */
-    if (v->engine == EG_CANE)
-        cn_init(v);
-    else if (v->engine == EG_VOILE)
-        vo_init(v);
-    else if (v->engine == EG_ACID)
-        v->o[4] = 1.0f;                          /* its 303 set up from scratch on the render's side (acid_chunk) */
 }
 
-/* a rising saw crossfading into a pulse that is low first and high after pw: the two in step, so the
- * morph keeps its level (a pulse high first would cancel the saw's fundamental halfway). The pulse's
- * second edge sits at p + 1 - pw in (0.5, 2): its wrap is a compare (the same bits as wrap1's floor) */
-/* saw .. pulse by mix (0..1, > 0 here) at width pw, PolyBLEP'd: a pulse is a saw less the saw a width on (q =
- * p + 1 - pw, wrapped), plus 1 - 2 pw, so the blend is 2 p - 2 mix q + (2 mix (1 - pw) - 1), less the saw's residual
- * at p, plus mix the residual at q. k: its constants (saw_pulse_k) */
-typedef struct { float a, m2, c, mix; } sawp_t;
-static inline sawp_t saw_pulse_k(float pw, float mix)
-{
-    sawp_t k = {1.0f - pw, 2.0f * mix, 2.0f * mix * (1.0f - pw) - 1.0f, mix};
-    return k;
-}
-SY_INLINE float saw_pulse(float p, float dt, float idt, sawp_t k)
-{
-    float q = p + k.a;
-    q = q >= 1.0f ? q - 1.0f : q;
-    return 2.0f * p - k.m2 * q + k.c - blep(p, dt, idt) + k.mix * blep(q, dt, idt);
-}
 /* wavetable: a frame crossfade (scan) through one of nine tables, bend bends the phase (symmetry), ripple
  * phase-modulates it by a second oscillator that climbs from a slow wobble to the note's own rate */
 static void wt_prep(voice_t *v)
@@ -511,356 +454,6 @@ static void rayon_chunk(voice_t *v)              /* the fall, the tine's decay *
     }
     v->o[7] *= 0.994f;                           /* the tine: ~0.25 s (tines') */
 }
-
-/* organ: six drawbars (16' 8' 4' 2 2/3' 2' 1 1/3') as rotating phasors (a complex multiply a sine:
- * no polynomial). stops picks one of eight registrations, transistor to church; pedal 1..8 is the 16'
- * bar; the rotor's amount and rate are 1..8 (1 = none / slowest) */
-static const float ORGAN_SET[8][5] = {{1.0f, 0.15f, 0.0f, 0.6f, 0.0f},    /* 1 transistor: reedy, hollow */
-                                      {1.0f, 0.6f, 0.0f, 0.4f, 0.2f},     /* 2 combo: bright, thin */
-                                      {1.0f, 0.7f, 0.5f, 0.1f, 0.0f},     /* 3 jazz */
-                                      {1.0f, 0.9f, 0.7f, 0.7f, 0.5f},     /* 4 gospel: all bars out */
-                                      {1.0f, 0.8f, 0.6f, 0.3f, 0.3f},     /* 5 rock */
-                                      {1.0f, 0.5f, 0.35f, 0.5f, 0.6f},    /* 6 theatre */
-                                      {1.0f, 0.4f, 0.1f, 0.2f, 0.05f},    /* 7 pipe: flutes */
-                                      {1.0f, 0.8f, 0.9f, 0.9f, 0.9f}};    /* 8 church: the full chorus */
-static const float ORGAN_RATIO[6] = {0.5f, 1.0f, 2.0f, 3.0f, 4.0f, 6.0f};
-static inline int knob8(float raw) { int k = (int)(raw + 0.5f); return k < 1 ? 1 : k > 8 ? 8 : k; }
-/* the drawbars the stops and the pedal ask for (bars[0..5]) and the rotor's depth (*amt): organ_chunk glides the
- * voice's toward them (a stop changed while a note sounds: no click); a new note starts at them (organ_prep) */
-static void organ_want(const cfg_t *c, float *bars, float *amt)
-{
-    int k = knob8(c->ek[0]) - 1, j;
-    float bass = (float)(knob8(c->ek[1]) - 1) * (1.0f / 7.0f), sum = bass;
-    *amt = (float)(knob8(c->ek[2]) - 1) * (1.0f / 7.0f);
-    bars[0] = bass * 0.8f;
-    for (j = 1; j < 6; j++) {
-        bars[j] = ORGAN_SET[k][j - 1];
-        sum += bars[j];
-    }
-    sum = 1.4f / (sum + 0.5f);                  /* the bars share a level near the other engines' */
-    for (j = 0; j < 6; j++)
-        bars[j] *= sum;
-}
-static void organ_prep(voice_t *v)
-{
-    cfg_t *c = &v->c;
-    int j;
-    float tr = 0.5f * fm_exp2f((float)(knob8(c->ek[3]) - 1) * (4.0f / 7.0f)) * INV_SR, base, amt;   /* 0.5 .. 8 Hz */
-    if (v->fresh) {                             /* (sounding: organ_chunk glides them) */
-        float bars[6];
-        organ_want(c, bars, &amt);
-        for (j = 0; j < 6; j++)
-            c->ex[j] = bars[j];
-        c->ex[19] = amt;
-    }
-    amt = c->ex[19];
-    c->ex[18] = tr;
-    base = c->freq * INV_SR * (1.0f + amt * 0.004f * fm_sin_turns(v->o[12]));   /* the tremolo's pitch wobble */
-    for (j = 0; j < 6; j++) {
-        float a = fm_minf(base * ORGAN_RATIO[j], 0.45f) * FM_TWO_PI, re = v->o[j * 2], im = v->o[j * 2 + 1], r2;
-        c->ex[6 + j] = fm_cosf(a);
-        c->ex[12 + j] = fm_sinf(a);
-        r2 = re * re + im * im;                  /* renormalise the phasor once a chunk */
-        if (r2 > 0.5f) {
-            float g = fm_rsqrtf(r2);
-            v->o[j * 2] = re * g;
-            v->o[j * 2 + 1] = im * g;
-        } else {
-            v->o[j * 2] = 1.0f;
-            v->o[j * 2 + 1] = 0.0f;
-        }
-    }
-    c->stereo = 0;
-}
-void organ_bars(const uint8_t *par, float bars[6])
-{
-    int k = knob8((float)par[TP_E1]) - 1, j;
-    float mx = 0.0f;
-    bars[0] = (float)(knob8((float)par[TP_E2]) - 1) * (1.0f / 7.0f) * 0.8f;
-    for (j = 1; j < 6; j++)
-        bars[j] = ORGAN_SET[k][j - 1];
-    for (j = 0; j < 6; j++)
-        mx = fm_maxf(mx, bars[j]);
-    for (j = 0; j < 6; j++)
-        bars[j] /= mx;
-}
-static void organ_run(voice_t *v, float *xl, float *xr, int m)
-{
-    const cfg_t *c = &v->c;
-    float re[6], im[6];
-    const float *cr = c->ex + 6, *ci = c->ex + 12;
-    int i, j;
-    (void)xr;
-    for (j = 0; j < 6; j++) {
-        re[j] = v->o[j * 2];
-        im[j] = v->o[j * 2 + 1];
-    }
-    {   /* the tremolo: its gain ramps across the chunk (organ_chunk aims it) */
-        float g0 = v->o[13], dg = v->o[14];
-        for (i = 0; i < m; i++) {
-            float s = 0.0f;
-            for (j = 0; j < 6; j++) {
-                float nr = re[j] * cr[j] - im[j] * ci[j];
-                im[j] = re[j] * ci[j] + im[j] * cr[j];
-                re[j] = nr;
-                s += im[j] * c->ex[j];
-            }
-            g0 += dg;
-            xl[i] = s * g0;
-        }
-        v->o[13] = g0;
-    }
-    for (j = 0; j < 6; j++) {
-        v->o[j * 2] = re[j];
-        v->o[j * 2 + 1] = im[j];
-    }
-}
-static void organ_chunk(voice_t *v)              /* the drawbars' glide, the tremolo's phase and the chunk's gain ramp */
-{
-    cfg_t *c = &v->c;
-    float g1, bars[6], amt;
-    int j;
-    organ_want(c, bars, &amt);
-    for (j = 0; j < 6; j++)
-        c->ex[j] = glide_to(c->ex[j], bars[j]);
-    c->ex[19] = glide_to(c->ex[19], amt);
-    v->o[12] = wrap1(v->o[12] + c->ex[18] * (float)SY_CHUNK);
-    g1 = 1.0f - c->ex[19] * 0.5f * (0.5f - 0.5f * fm_sin_turns(v->o[12]));
-    v->o[14] = (g1 - v->o[13]) * (1.0f / (float)SY_CHUNK);
-}
-
-/* knit's unison: the voices' detune offsets by pairs (n / 2), the JP-8000's table at six or seven (after NuSaw,
- * the NuSaw plugin, MIT, and its FM-1 port fm1-nusaw: brocade's, the supersaw this replaces); NuSaw's detune curve
- * (fine at first, wide at the end); and its keytracked high-pass (12 dB at a third of the note, the JP-8000's), which
- * keeps a unison's beating out of the bass */
-static const float KNIT_COEF[4][7] = {
-    {0.0f},
-    {0.0f, 1.0f, -1.0f},
-    {0.0f, 1.0f / 3.0f, -1.0f / 3.0f, 1.0f, -1.0f},
-    {0.0f, 128.0f / 720.0f, -128.0f / 720.0f, 408.0f / 720.0f, -412.0f / 720.0f, 704.0f / 720.0f, -1.0f}};
-static inline float knit_detune(float x)
-{
-    if (x < 0.1f)
-        return x * 0.2f;
-    if (x < 0.5f)
-        return 0.02f + (x - 0.1f) * 0.575f;
-    return 0.25f + (x - 0.5f) * 1.5f;
-}
-SY_INLINE void knit_hp(float *x, float *lo, float *bp, float f, int m)
-{
-    float l = *lo, b = *bp;
-    int i;
-    for (i = 0; i < m; i++) {
-        float h = x[i] - l - 1.4f * b;
-        b += f * h;
-        l += f * b;
-        x[i] = h;
-    }
-    *lo = fm_flush(l);
-    *bp = fm_flush(b);
-}
-/* knit: the everyday subtractive voice. wave: saw (0) .. square (the middle) .. a 10 % pulse (saw_pulse:
- * the LFO on it is PWM); voices 1..7: a unison of that wave, detuned by the JP-8000's offsets (KNIT_COEF) as detune opens, each pair across the field as width opens, all at one power (1 / sqrt n); at one voice
- * detune is a drift instead, the pitch wandering slowly (up to +-12 cents, a fresh target every ~0.4 s). Its second
- * page (TP_X1..X4, KNIT_X_P): osc 2, one more of the wave at an interval (+-24 semitones about 64) and its level (0 off),
- * detune also tuning it up to 20 cents above the interval (two oscillators beating, at any number of voices);
- * sub, a sine an octave down; noise. A unison's beating is kept out of the bass by brocade's keytracked high-pass.
- * o[0..6] the voices' phases (random at the start), o[7] osc 2's, o[8] the sub's, o[10] the drift (cents) and o[11]
- * its target, o[12..15] the high-pass (low and band, L then R). ex[0] the increment, ex[1] the detune's, ex[2] the
- * voices, ex[3] the pulse's mix, ex[4] its width, ex[5..10] the pairs' L and R gains, ex[11] the high-pass's, ex[12]
- * a voice's gain, ex[13] osc 2's increment, ex[14] its gain, ex[15] the sub's increment, ex[16] its gain, ex[17]
- * the noise's, ex[18..21] the second page's knobs (voice_chunk), ex[22] the drift's factor (knit_chunk). */
-#define KNIT_MAX 7
-#define KNIT_OSC2_DETUNE (20.0f / 1200.0f)      /* detune at full: osc 2 that many octaves (20 cents) above its interval */
-static void knit_prep(voice_t *v)
-{
-    cfg_t *c = &v->c;
-    int n = (int)fm_clampf(fm_floorf(c->ek[2] + 0.5f), 1.0f, (float)KNIT_MAX), M = n / 2, k;
-    float f = c->freq * INV_SR, w = c->e[3];
-    c->ex[0] = fm_minf(f, 0.45f);
-    c->ex[1] = n > 1 ? f * 0.1102f * knit_detune(c->e[1]) : 0.0f;
-    c->ex[2] = (float)n;
-    if (c->e[0] < 0.5f) {                        /* saw .. square */
-        c->ex[3] = c->e[0] * 2.0f;
-        c->ex[4] = 0.5f;
-    } else {                                     /* square .. a 10 % pulse */
-        c->ex[3] = 1.0f;
-        c->ex[4] = 0.5f - (c->e[0] - 0.5f) * 0.8f;
-    }
-    const int kp_fresh = v->kp_n <= 0;           /* (no cache yet: knit_init, or a voice never prepared) */
-    if (kp_fresh || v->kp_n != n || v->kp_w != w) {   /* (the pairs' gains and a voice's: only when width or voices moved;
-                                                  * the tape's wow moves the pitch every chunk) */
-        for (k = 1; k <= 3; k++) {               /* pair k: its upper voice towards the right, its lower the left */
-            float a = (1.0f + (M ? (float)(k < M ? k : M) / (float)M * w : 0.0f)) * 0.78539816f;
-            c->ex[3 + 2 * k] = fm_cosf(a) * 1.41421356f;
-            c->ex[4 + 2 * k] = fm_sinf(a) * 1.41421356f;
-        }
-        c->ex[12] = fm_rsqrtf((float)n);
-        v->kp_n = (int8_t)n;
-        v->kp_w = w;
-    }
-    c->ex[11] = fm_minf(2.07345f * f, 0.9f);    /* the high-pass at a third of the note (brocade's) */
-    if (c->ex[19] > 0.0f)                        /* osc 2's increment: only when it sounds (its level: ex[14]; a
-                                                  * level turned up moves a knob, so this runs again) */
-        c->ex[13] = fm_minf(f * fm_exp2f((c->ex[18] - 64.0f) * (1.0f / 12.0f) + c->e[1] * KNIT_OSC2_DETUNE), 0.45f);
-    c->ex[14] = c->ex[19] * (1.0f / 127.0f);
-    c->ex[15] = f * 0.5f;
-    c->ex[16] = c->ex[20] * (1.0f / 127.0f);
-    c->ex[17] = c->ex[21] * (0.5f / 127.0f);
-    if (c->ex[22] <= 0.0f)
-        c->ex[22] = 1.0f;
-    c->stereo = w > 0.001f && n > 1;
-}
-static void knit_chunk(voice_t *v)                 /* the drift at one voice: toward a fresh target, slowly */
-{
-    cfg_t *c = &v->c;
-    float depth = c->ex[2] < 1.5f ? c->e[1] * 12.0f : 0.0f;
-    if (depth <= 0.0f) {
-        c->ex[22] = 1.0f;
-        return;
-    }
-    if ((v->nchunk & 255) == 0)                  /* (~0.4 s) */
-        v->o[11] = (float)(int32_t)xs(&v->rng) * (1.0f / 2147483648.0f) * depth;
-    v->o[10] += (v->o[11] - v->o[10]) * 0.01f;
-    c->ex[22] = fm_exp2f(v->o[10] * (1.0f / 1200.0f));
-}
-/* one oscillator into the buffers (set: first, or added), a run at a time: between its edges (the saw's wrap at 1,
- * the pulse's where q = p + 1 - pw wraps) the wave is a plain ramp, and the PolyBLEP's residuals are 0 but on the
- * samples beside an edge (blep: t < dt after it, t > 1 - dt before it). So a run whose samples are all clear of the
- * edges goes without the edge tests and residuals (a pad's note at 110 Hz: 2 such samples in 400), and the samples
- * near an edge take the full path. The same samples as knit_osc's: a residual of 0 changes nothing, and a run is
- * found one sample short, so rounding never puts an edge's sample in it. */
-SY_INLINE void knit_osc_seg(float *ph, float d, float pw, float mix, float gl, float gr, float *xl, float *xr, int m,
-                          const int stereo, const int first)
-{
-    float p = *ph, id = 1.0f / d;
-    sawp_t k = saw_pulse_k(pw, mix);
-    const int pulse = mix > 0.0f;
-    int i = 0;
-    while (i < m) {
-        float pn = p + d;
-        if (pn >= d && pn <= 1.0f - d && !(pulse && pn > pw - d && pn < pw + d)) {   /* clear of the edges */
-            float lim = pulse && pn < pw ? pw - d : 1.0f - d, fr = (lim - p) * id;
-            int run = (fr > (float)(m - i + 1) ? m - i + 1 : (int)fr) - 1, j;
-            if (run >= 1) {
-                if (!pulse) {
-                    for (j = 0; j < run; j++, i++) {
-                        float x;
-                        p += d;
-                        x = 2.0f * p - 1.0f;
-                        if (first) {
-                            xl[i] = x * gl;
-                            if (stereo)
-                                xr[i] = x * gr;
-                        } else {
-                            xl[i] += x * gl;
-                            if (stereo)
-                                xr[i] += x * gr;
-                        }
-                    }
-                } else {
-                    const int hi = pn >= pw;             /* (q has wrapped: the run is all past the pulse's edge) */
-                    for (j = 0; j < run; j++, i++) {
-                        float x, q;
-                        p += d;
-                        q = p + k.a;
-                        if (hi)
-                            q = q - 1.0f;
-                        x = 2.0f * p - k.m2 * q + k.c;
-                        if (first) {
-                            xl[i] = x * gl;
-                            if (stereo)
-                                xr[i] = x * gr;
-                        } else {
-                            xl[i] += x * gl;
-                            if (stereo)
-                                xr[i] += x * gr;
-                        }
-                    }
-                }
-                continue;
-            }
-        }
-        {   /* beside an edge: the full path */
-            float x;
-            p = step1(p, d);
-            x = !pulse ? 2.0f * p - 1.0f - blep(p, d, id) : saw_pulse(p, d, id, k);
-            if (first) {
-                xl[i] = x * gl;
-                if (stereo)
-                    xr[i] = x * gr;
-            } else {
-                xl[i] += x * gl;
-                if (stereo)
-                    xr[i] += x * gr;
-            }
-            i++;
-        }
-    }
-    *ph = p;
-}
-SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int stereo)
-{
-    const cfg_t *c = &v->c;
-    const int n = (int)c->ex[2];
-    const float *co = KNIT_COEF[n / 2], mix = c->ex[3], pw = c->ex[4], g = c->ex[12], dr = c->ex[22];
-    float d[KNIT_MAX + 1], gg[2 * KNIT_MAX + 2];
-    int i, k;
-    for (k = 0; k < n; k++) {                    /* the voices: the centre, then the pairs (upper right, lower left) */
-        d[k] = fm_clampf((c->ex[0] + co[k] * c->ex[1]) * dr, 1e-6f, 0.45f);
-        gg[2 * k] = gg[2 * k + 1] = g;
-        if (k && stereo) {
-            const float *pn = &c->ex[3 + 2 * ((k + 1) >> 1)];
-            gg[2 * k] = g * pn[~k & 1];
-            gg[2 * k + 1] = g * pn[k & 1];
-        }
-    }
-    for (k = 0; k < n; k++)                      /* the voices: the centre first (it sets the buffers), then the pairs */
-        if (k)
-            knit_osc_seg(&v->o[k], d[k], pw, mix, gg[2 * k], gg[2 * k + 1], xl, xr, m, stereo, 0);
-        else
-            knit_osc_seg(&v->o[0], d[0], pw, mix, gg[0], gg[1], xl, xr, m, stereo, 1);
-    if (n > 1) {
-        knit_hp(xl, &v->o[12], &v->o[13], c->ex[11], m);
-        if (stereo)
-            knit_hp(xr, &v->o[14], &v->o[15], c->ex[11], m);
-    }
-    if (c->ex[14] > 0.0f) {                      /* osc 2: one more, in the middle */
-        float d = fm_clampf(c->ex[13] * dr, 1e-6f, 0.45f);
-        knit_osc_seg(&v->o[7], d, pw, mix, c->ex[14], c->ex[14], xl, xr, m, stereo, 0);
-    }
-    if (c->ex[16] > 0.0f || c->ex[17] > 0.0f) {  /* the sub (a sine an octave down) and the noise */
-        float p = v->o[8], d = c->ex[15] * dr, gs = c->ex[16], gn = c->ex[17];
-        for (i = 0; i < m; i++) {
-            float x;
-            p = step1(p, d);
-            x = fm_sin_pi((p < 0.5f ? p : p - 1.0f) * FM_TWO_PI) * gs + frand(&v->rng) * gn;
-            xl[i] += x;
-            if (stereo)
-                xr[i] += x;
-        }
-        v->o[8] = p;
-    }
-}
-static void knit_run(voice_t *v, float *xl, float *xr, int m)
-{
-    if (v->c.stereo)
-        knit_loop(v, xl, xr, m, 1);
-    else
-        knit_loop(v, xl, xr, m, 0);
-}
-static void knit_init(voice_t *v)                  /* the voices from random phases */
-{
-    int j;
-    for (j = 0; j < KNIT_MAX; j++)
-        v->o[j] = (float)(xs(&v->rng) >> 8) * (1.0f / 16777216.0f);
-    v->c.ex[22] = 1.0f;                          /* (no drift yet: another engine's ex[22] is not a factor) */
-    v->kp_n = -1;                                /* (knit_prep's cache: another engine wrote over ex[]) */
-}
-
-/* cane, voile and gingham: Braids' models (dsp/braids.h, MIT) */
-#define CN_NONE 0xFFu
-#include "braids.h"
 
 /* sample: a sample of the bank (dsp/sample.h) at the note's pitch; its root note plays it at its own rate
  * (sm->rate: the factory's 22.05 kHz, half a sample a frame), linearly interpolated. start: where in it
@@ -1061,149 +654,6 @@ static void smp_run(voice_t *v, float *xl, float *xr, int m)
     v->o[2] = (float)dir;
 }
 
-/* slice: a loop cut into even slices (synth.h EG_SLICE), the note choosing one: (note - root) mod slices. Its
- * rate: a sample that states its bars lasts that many bars at the tempo (n samples in bars * 4 beats, whatever
- * its rate), else its own (sm->rate); the pitch knob (and the bend, an LFO on the pitch) on top, so a slice
- * pitched down plays longer than its place in the bar. The gate is the share of the slice that plays, then the voice
- * ends (as one-shot); every slice fades in over SL_FADE_IN frames and out over the last SL_FADE_OUT before
- * its gate's end, so a cut never clicks. A mono retrigger, or a legato note picking another slice, fades the
- * old one out over SL_SWITCH frames first (one cache window a voice: no second read position to crossfade
- * with); legato then goes on at the same place in the new slice, the time running on.
- * o[0] the position, o[1] its fraction, o[2] the slice playing, o[3] 1 = done, o[4] 1 = started, o[5] frames
- * into the slice (its fade in), o[6] the switch's fade (0 .. 1 = silent), o[7] a switch waiting: 1 the note's
- * slice from its start (a retrigger), 2 the note's slice at the same place (legato), 3 the end (the gate
- * turned down behind the position), o[8] the gate's end the last time (in the sample) */
-#define SL_FADE_IN 32.0f                         /* 0.7 ms */
-#define SL_FADE_OUT 96.0f                        /* 2.2 ms */
-#define SL_SWITCH 64.0f                          /* 1.5 ms */
-static void slc_prep(voice_t *v, float bpm)
-{
-    cfg_t *c = &v->c;
-    int idx = (int)fm_clampf(fm_floorf(c->ek[0] + 0.5f), 0.0f, (float)(smp_slots() - 1));
-    const smp_t *sm = smp_get(idx);
-    float rate, semi;
-    c->stereo = 0;
-    c->ex[6] = (float)idx;
-    c->ex[7] = (float)sl_count((int)(c->ek[1] + 0.5f));
-    if (!sm || sm->n < 64u) {
-        c->ex[0] = 0.0f;
-        return;
-    }
-    rate = sm->bars ? (float)sm->n * bpm * (1.0f / (240.0f * SY_SR)) / (float)sm->bars : (float)sm->rate / SY_SR;
-    semi = fm_clampf(c->ek[2], 40.0f, 88.0f) - 64.0f + c->pitch_off * 0.01f;
-    c->ex[0] = fm_clampf(rate * fm_exp2f(semi * (1.0f / 12.0f)), 0.01f, 8.0f);
-    c->ex[1] = fm_maxf(c->e[3], 0.02f);
-    c->ex[2] = (float)sm->root;
-    c->ex[3] = 1.0f / (c->ex[0] * SL_FADE_OUT);  /* source samples to the gate's end -> the fade out's gain */
-}
-/* slice k of ns: its first sample s0 and the gate's end e */
-static void slc_bounds(const smp_t *sm, int ns, int k, float gate, int32_t *s0, int32_t *e)
-{
-    int32_t a = (int32_t)((uint32_t)k * sm->n / (uint32_t)ns), b = (int32_t)((uint32_t)(k + 1) * sm->n / (uint32_t)ns);
-    int32_t g = (int32_t)(gate * (float)(b - a));
-    *s0 = a;
-    *e = a + (g < 32 ? 32 : g > b - a ? b - a : g);
-}
-static void slc_run(voice_t *v, float *xl, float *xr, int m)
-{
-    const cfg_t *c = &v->c;
-    const smp_t *sm = smp_get((int)c->ex[6]);
-    const int ns = (int)c->ex[7];
-    const float inc = c->ex[0], gate = c->ex[1];
-    smp_cache_t *ca = &smp_vc[v->vi % NVOICE];
-    float fr = v->o[1], fin = v->o[5], sw = v->o[6];
-    int32_t pos = (int32_t)v->o[0], s0 = 0, e = 0;
-    int cur = (int)v->o[2], pend = (int)v->o[7], want = 0, i = 0;
-    int done = !sm || inc <= 0.0f || v->o[3] > 0.5f || ns < 1;
-    (void)xr;
-    if (!done) {
-        int d = ((int)v->note - (int)c->ex[2]) % ns;
-        want = d < 0 ? d + ns : d;
-        if (v->o[4] < 0.5f) {                    /* the note's first sample: its slice's start */
-            v->o[4] = 1.0f;
-            cur = want;
-            pend = 0;
-            sw = fin = fr = 0.0f;
-            slc_bounds(sm, ns, cur, gate, &s0, &e);
-            pos = s0;
-        } else if (!pend && (want != cur || cur >= ns)) {
-            pend = 2;                            /* (a legato note on another slice, the slices turned) */
-        }
-    }
-    while (!done && i < m) {
-        int k, j, req = m - i;
-        float lo;
-        if (pend == 3 && sw >= 1.0f) {           /* faded out past a gate turned down: the end */
-            done = 1;
-            break;
-        }
-        if (pend && sw >= 1.0f) {                /* faded out: the switch */
-            int32_t off = 0;
-            if (pend == 2 && cur < ns) {
-                slc_bounds(sm, ns, cur, gate, &s0, &e);
-                off = pos - s0;
-            } else {
-                fr = 0.0f;
-            }
-            cur = want;
-            slc_bounds(sm, ns, cur, gate, &s0, &e);
-            pos = s0 + (off > 0 ? off : 0);
-            pend = 0;
-            sw = fin = 0.0f;
-            if (pos >= e) {
-                done = 1;
-                break;
-            }
-        }
-        slc_bounds(sm, ns, cur, gate, &s0, &e);
-        if (!pend && pos >= e && cur < ns) {     /* at the gate's end: it has played; or the gate was turned
-                                                  * down behind the position: a fade, then the end */
-            if ((float)e >= v->o[8]) {
-                done = 1;
-                break;
-            }
-            pend = 3;
-        }
-        v->o[8] = (float)e;
-        if (pend == 3)                           /* (meanwhile on into the slice, the gate's fade out of it) */
-            slc_bounds(sm, ns, cur, 1.0f, &s0, &e);
-        if (pend) {                              /* up to the switch */
-            int left = (int)((1.0f - sw) * SL_SWITCH + 0.999f);
-            req = left < 1 ? 1 : left < req ? left : req;
-        }
-        lo = pend == 3 ? 1e9f : ((float)(e - pos) - fr) * c->ex[3];
-        k = smp_play(ca, sm, &pos, &fr, inc, 1, s0, e, xl + i, req);
-        for (j = 0; j < k; j++) {                /* the fades: in, out at the gate's end, the switch's */
-            float g = fm_minf(fm_minf((fin + (float)j) * (1.0f / SL_FADE_IN), lo - (float)j * (1.0f / SL_FADE_OUT)), 1.0f);
-            if (pend)
-                g *= 1.0f - fm_minf(sw + (float)j * (1.0f / SL_SWITCH), 1.0f);
-            xl[i + j] *= fm_maxf(g, 0.0f);
-        }
-        fin = fm_minf(fin + (float)k, SL_FADE_IN);
-        if (pend)
-            sw = fm_minf(sw + (float)k * (1.0f / SL_SWITCH), 1.0f);
-        i += k;
-        if (k < req) {                           /* the gate's end: the slice has played */
-            if (pend)
-                sw = 1.0f;                       /* (a switch waiting: now) */
-            else
-                done = 1;
-        }
-    }
-    if (done) {                                  /* silence: the voice is free (as the sample engine's one-shot) */
-        for (; i < m; i++)
-            xl[i] = 0.0f;
-        v->o[3] = 1.0f;
-        v->amp.stage = ENV_OFF;
-        v->amp.level = 0.0f;
-    }
-    v->o[0] = (float)pos;
-    v->o[1] = fr;
-    v->o[2] = (float)cur;
-    v->o[5] = fin;
-    v->o[6] = sw;
-    v->o[7] = (float)pend;
-}
 static void smp_retrigger(voice_t *v)            /* a mono retrigger: what plays fades out first (smp_run), no click */
 {
     if (v->o[4] > 0.5f && v->o[3] < 0.5f) {
@@ -1212,107 +662,22 @@ static void smp_retrigger(voice_t *v)            /* a mono retrigger: what plays
     } else
         v->o[3] = v->o[4] = v->o[5] = 0.0f;
 }
-static void slc_retrigger(voice_t *v)            /* a mono retrigger: the playing slice fades, the note's starts */
-{
-    if (v->o[4] > 0.5f && v->o[3] < 0.5f)
-        v->o[7] = 1.0f;
-    else
-        v->o[3] = v->o[4] = 0.0f;
-}
-
-/* acid: X0X's 303 (dsp/bass303.c) in one of NACID slots (v->as; ACID_NONE: none, then it plays nothing). A note reaches
- * it as a request in o[] (synth_note_on runs from RAM and cannot call bass303.c's code in the flash; the render
- * applies it): o[0] a note to start, o[1] the note, o[2] accented, o[3] a slide; o[4] the slot to be set up first (a
- * fresh voice: eng_init). The gate follows v->held. c.ex[0..NACIDP-1]: the 303's pots this chunk (voice_chunk: ACID_PAR
- * into ACID_POT), ex[NACIDP] the pitch's factor (bend, octave, an LFO). Its pages: Engine wave, accent, slide, tune;
- * Envelope attack, decay, acc dec, length; Filter cutoff, reso, env mod, low cut; Sub drive, its type, shaper. The voice's level is 1 while it sounds; it ends
- * when its 303 has been silent BASS303_IDLE_HOLD samples (the 303 stays warm between notes, as X0X's) */
-#define ACID_NONE 0xFFu
-#define ACID_VOL 118                              /* the 303's volume pot (-4 dB): its plain note as loud as the engines' */
-static bass303_t acid_mem[NACID];
-static uint8_t acid_lite;                        /* the overload guard's first step (engine.c ACID_LITE_ON): set between
-                                                  * renders, read by every acid render */
-#define NACIDP 15
-static const uint8_t ACID_PAR[NACIDP] = {TP_CUT, TP_RES, TP_FENV, TP_KTRK, TP_A, TP_D, TP_S, TP_R, TP_E1, TP_E2, TP_E3,
-                                         TP_E4, TP_X1, TP_X2, TP_X3};
-static const uint8_t ACID_POT[NACIDP] = {BASS303_CUTOFF, BASS303_RESO, BASS303_ENVMOD, BASS303_FBHPF, BASS303_SOFTATK,
-                                         BASS303_DECAY, BASS303_ACCDEC, BASS303_AMPDEC, BASS303_WAVE, BASS303_ACCENT,
-                                         BASS303_SLIDE, BASS303_TUNE, BASS303_DRIVE, BASS303_DRVTYPE, BASS303_SHAPER};
-static const uint8_t ACID_MAX[NACIDP] = {127, 127, 127, 127, 127, 127, 127, 127, 1, 127, 127, 127, 127, 2, 127};
-static inline void acid_note(voice_t *v, int note, int vel, int slide)   /* (from synth_note_on: RAM) */
-{
-    v->o[1] = (float)note;
-    v->o[2] = vel >= ACID_ACCENT ? 1.0f : 0.0f;
-    v->o[3] = slide ? 1.0f : 0.0f;
-    v->o[0] = 1.0f;
-}
-static void acid_chunk(voice_t *v)
-{
-    bass303_t *b = v->as < NACID ? &acid_mem[v->as] : 0;
-    int i;
-    if (!b)
-        return;
-    if (v->o[4] > 0.5f) {
-        bass303_init(b);
-        bass303_set(b, BASS303_VOLUME, ACID_VOL);
-        v->o[4] = 0.0f;
-    }
-    for (i = 0; i < NACIDP; i++)
-        if ((int)v->c.ex[i] != bass303_get(b, ACID_POT[i]))
-            bass303_set(b, ACID_POT[i], (int)v->c.ex[i]);
-    bass303_pitch(b, v->c.ex[NACIDP]);
-}
-static void acid_run(voice_t *v, float *xl, int m)
-{
-    bass303_t *b = v->as < NACID && v->o[4] < 0.5f ? &acid_mem[v->as] : 0;
-    int i;
-    if (!b) {                                    /* no slot (or not set up): silent, the voice free */
-        for (i = 0; i < m; i++)
-            xl[i] = 0.0f;
-        v->amp.stage = ENV_OFF;
-        v->amp.level = 0.0f;
-        return;
-    }
-    if (v->o[0] > 0.5f) {
-        if (v->o[3] > 0.5f && !b->idle)
-            b->gate = 1;                         /* a slide asked for after the last note let go: still a slide */
-        bass303_note_on(b, (int)v->o[1], v->o[2] > 0.5f, v->o[3] > 0.5f);
-        v->o[0] = 0.0f;
-    }
-    if (!v->held && b->gate)
-        bass303_note_off(b);
-    bass303_set_lite(b, acid_lite);
-    bass303_render(b, xl, m);
-    if (b->idle) {
-        v->amp.stage = ENV_OFF;
-        v->amp.level = 0.0f;
-    }
-}
 
 static void eng_chunk(voice_t *v)                /* every chunk: the engines' own slow movements */
 {
     switch (v->engine) {
     case EG_RAYON: rayon_chunk(v); break;
-    case EG_BELLOWS: organ_chunk(v); break;
-    case EG_CANE: cn_chunk(v); break;
-    case EG_KNIT: knit_chunk(v); break;
-    case EG_VOILE: vo_chunk(v); break;
-    case EG_ACID: acid_chunk(v); break;
     default: break;
     }
 }
 static void eng_prep(voice_t *v, float bpm)
 {
+    (void)bpm;
     switch (v->engine) {
     case EG_JACQUARD: wt_prep(v); break;
     case EG_RAYON: rayon_prep(v); break;
-    case EG_BELLOWS: organ_prep(v); break;
     case EG_SAMPLE: smp_prep(v); break;
-    case EG_SLICE: slc_prep(v, bpm); break;
-    case EG_CANE: cn_prep(v); break;
-    case EG_VOILE: vo_prep(v); break;
-    case EG_ACID: v->c.stereo = 0; break;        /* (its own: acid_chunk) */
-    default: knit_prep(v); break;
+    default: break;
     }
 }
 static void eng_run(voice_t *v, float *xl, float *xr, int m)
@@ -1320,13 +685,8 @@ static void eng_run(voice_t *v, float *xl, float *xr, int m)
     switch (v->engine) {
     case EG_JACQUARD: wt_run(v, xl, xr, m); break;
     case EG_RAYON: rayon_run(v, xl, xr, m); break;
-    case EG_BELLOWS: organ_run(v, xl, xr, m); break;
     case EG_SAMPLE: smp_run(v, xl, xr, m); break;
-    case EG_SLICE: slc_run(v, xl, xr, m); break;
-    case EG_CANE: cn_run(v, xl, xr, m); break;
-    case EG_VOILE: vo_run(v, xl, xr, m); break;
-    case EG_ACID: acid_run(v, xl, m); break;
-    default: knit_run(v, xl, xr, m); break;
+    default: break;
     }
 }
 
@@ -1341,16 +701,11 @@ static void voice_start(synth_t *s, voice_t *v, int note, int vel, int glide_ms,
     float ms = porta_ms(glide_ms, P(s, v->trk, TP_PORTA));
     int eng = P(s, v->trk, TP_ENGINE);
     if (!eg_synth(eng))
-        eng = EG_KNIT;
-    uint8_t was_as = v->as;
-    v->tws = v->tws_pend;                        /* cane: the slot voice_take kept for this note */
-    v->as = v->as_pend;                          /* acid: its 303's */
+        eng = EG_RAYON;
     v->cost_m = t->cost_m;                       /* (the split's guess: what the track's voices take) */
     if (eng != v->engine || !v_sounding(v)) {
         v->engine = (uint8_t)eng;
         eng_init(v);
-    } else if (v->engine == EG_ACID && v->as != was_as) {
-        v->o[4] = 1.0f;                          /* (another slot: set up afresh) */
     }
     v->note = (uint8_t)note;
     v->tag = tag;
@@ -1366,18 +721,11 @@ static void voice_start(synth_t *s, voice_t *v, int note, int vel, int glide_ms,
     v->tsec = 0.0f;
     if (v->engine == EG_RAYON)                   /* its fall and its tine from the top, every note */
         v->o[5] = v->o[7] = 1.0f;
-    if (v->engine == EG_SAMPLE || v->engine == EG_SLICE) {   /* from the region's (the slice's) start again */
-        if (v->engine == EG_SAMPLE)
-            smp_xf_free(v);                      /* (a crossing it was in: its cache free) */
+    if (v->engine == EG_SAMPLE) {                /* from the region's start again */
+        smp_xf_free(v);                          /* (a crossing it was in: its cache free) */
         v->o[3] = v->o[4] = 0.0f;
         v->o[6] = v->o[7] = 0.0f;
     }
-    if (v->engine == EG_CANE)                    /* the Braids engines: a strike (Braids' trigger) */
-        cn_strike(v, 1);
-    else if (v->engine == EG_VOILE)
-        vo_strike(v);
-    else if (v->engine == EG_ACID)
-        acid_note(v, note, vel, glide_ms > 0);
     if (!in_render)
         t->last_pitch = v->pitch;
     v->fresh = 1;
@@ -1389,207 +737,6 @@ static int track_voices(const synth_t *s, int trk)
     for (i = 0; i < s->max_voices; i++)
         n += s->v[i].trk == trk && v_sounding(&s->v[i]);
     return n;
-}
-
-/* knit's cap (brocade's, whose unison it took): at most knit_cap() of its voices in the pool, by the unison of the
- * track that wants one (six at six or fewer, five at seven: such a voice costs about two and a half ordinary ones).
- * A voice counts as what it will play (a steal's pending note: its track's engine). */
-static int knit_cap(const synth_t *s, int trk)
-{
-    return P(s, trk, TP_E3) >= 7 ? 5 : 6;
-}
-static int knit_voice(const synth_t *s, const voice_t *v)
-{
-    if (!v_sounding(v))
-        return 0;
-    return (v->steal_phase == 1 ? P(s, v->trk, TP_ENGINE) : v->engine) == EG_KNIT;
-}
-/* and its saws: a voice costs about its unison's count (and one for osc 2), so past KNIT_SAWS in the pool a new note
- * takes the quietest releasing knit voice (a chord change's tails under the new chord: house's pad, four saws a
- * voice, played six voices with them, ~100 % of a core); held notes stay, the voice cap alone takes those */
-#define KNIT_SAWS 16
-static int knit_saws(const synth_t *s, int trk)
-{
-    int n = P(s, trk, TP_E3);
-    return (n < 1 ? 1 : n > KNIT_MAX ? KNIT_MAX : n) + (P(s, trk, TP_X2) > 0);
-}
-static int knit_find(const synth_t *s, int trk) /* the knit voice to take when the cap is reached; -1 */
-{
-    int i, n = 0, saws = 0, best = -1, own = 0, over_cap;
-    float quiet = 1e9f;
-    uint32_t oldest = 0xFFFFFFFFu;
-    for (i = 0; i < s->max_voices; i++)
-        if (knit_voice(s, &s->v[i])) {
-            n++;
-            saws += knit_saws(s, s->v[i].trk);
-        }
-    over_cap = n >= knit_cap(s, trk);
-    if (!over_cap && saws + knit_saws(s, trk) <= KNIT_SAWS)
-        return -1;
-    for (i = 0; i < s->max_voices; i++) {        /* releasing first (the quietest), then the track's own oldest */
-        const voice_t *v = &s->v[i];
-        if (!knit_voice(s, v) || v->steal_phase == 1)
-            continue;
-        if (v->amp.stage == ENV_RELEASE && v->amp.level < quiet) {
-            quiet = v->amp.level;
-            best = i;
-        }
-    }
-    if (best >= 0 || !over_cap)                  /* (past the saws alone, none releasing: a free voice after all) */
-        return best;
-    for (i = 0; i < s->max_voices; i++) {
-        const voice_t *v = &s->v[i];
-        int mine = v->trk == trk;
-        if (!knit_voice(s, v) || v->steal_phase == 1 || (own && !mine))
-            continue;
-        if ((mine && !own) || v->age < oldest) {
-            oldest = v->age;
-            best = i;
-            own = mine;
-        }
-    }
-    if (best < 0)                                /* all of them fading for a note already: the newest of */
-        for (i = 0; i < s->max_voices; i++)      /* those waits for this note instead */
-            if (knit_voice(s, &s->v[i]) && (best < 0 || s->v[i].age > s->v[best].age))
-                best = i;
-    return best;
-}
-
-/* cane's cap: its waveguides play from CN_SLOTS line slots (dsp/braids.h cn_mem), so at most CN_SLOTS of its
- * voices: one that plays cane (sounding) or will (a steal's pending note that voice_take kept a slot for) */
-static int cn_voice(const voice_t *v)
-{
-    return (v->engine == EG_CANE && v_sounding(v)) || (v->steal_phase == 1 && v->tws_pend != CN_NONE);
-}
-static int cn_holds(const voice_t *v, int j)     /* the voice plays from slot j, or will */
-{
-    return (v->engine == EG_CANE && v_sounding(v) && v->tws == j) || (v->steal_phase == 1 && v->tws_pend == j);
-}
-static int cn_find(const synth_t *s, int trk)    /* the cane voice to take when the cap is reached; -1 */
-{
-    int i, n = 0, best = -1, own = 0;
-    float quiet = 1e9f;
-    uint32_t oldest = 0xFFFFFFFFu;
-    for (i = 0; i < NVOICE; i++)
-        n += cn_voice(&s->v[i]);
-    if (n < CN_SLOTS)
-        return -1;
-    for (i = 0; i < NVOICE; i++) {               /* releasing first (the quietest), then the track's own oldest */
-        const voice_t *v = &s->v[i];
-        if (!cn_voice(v) || v->steal_phase == 1)
-            continue;
-        if (v->amp.stage == ENV_RELEASE && v->amp.level < quiet) {
-            quiet = v->amp.level;
-            best = i;
-        }
-    }
-    if (best >= 0)
-        return best;
-    for (i = 0; i < NVOICE; i++) {
-        const voice_t *v = &s->v[i];
-        int mine = v->trk == trk;
-        if (!cn_voice(v) || v->steal_phase == 1 || (own && !mine))
-            continue;
-        if ((mine && !own) || v->age < oldest) {
-            oldest = v->age;
-            best = i;
-            own = mine;
-        }
-    }
-    if (best < 0)                                /* all of them fading for a note already: the newest waits */
-        for (i = 0; i < NVOICE; i++)
-            if (cn_voice(&s->v[i]) && (best < 0 || s->v[i].age > s->v[best].age))
-                best = i;
-    return best;
-}
-/* the slot for a cane note on voice vi: its own when it plays cane now (the note follows on its lines), else
- * one no other voice holds (cn_find made sure there is one); CN_NONE when the track is not cane */
-static void cn_reserve(synth_t *s, int vi, int trk)
-{
-    voice_t *v = &s->v[vi];
-    int j, i;
-    v->tws_pend = CN_NONE;
-    if (P(s, trk, TP_ENGINE) != EG_CANE)
-        return;
-    if (v->engine == EG_CANE && v_sounding(v) && v->tws < CN_SLOTS) {
-        v->tws_pend = v->tws;
-        return;
-    }
-    for (j = 0; j < CN_SLOTS; j++) {
-        int used = 0;
-        for (i = 0; i < NVOICE && !used; i++)
-            used = i != vi && cn_holds(&s->v[i], j);
-        if (!used) {
-            v->tws_pend = (uint8_t)j;
-            return;
-        }
-    }
-}
-
-/* acid's cap: NACID 303s (acid_mem), as cane's slots: a voice that plays acid (sounding) or will (a steal's pending note
- * that voice_take kept a slot for) */
-static int acid_voice(const voice_t *v)
-{
-    return (v->engine == EG_ACID && v_sounding(v)) || (v->steal_phase == 1 && v->as_pend != ACID_NONE);
-}
-static int acid_holds(const voice_t *v, int j)
-{
-    return (v->engine == EG_ACID && v_sounding(v) && v->as == j) || (v->steal_phase == 1 && v->as_pend == j);
-}
-static int acid_find(const synth_t *s, int trk)  /* the acid voice to take when every 303 plays; -1 */
-{
-    int i, n = 0, best = -1, own = 0;
-    uint32_t oldest = 0xFFFFFFFFu;
-    for (i = 0; i < NVOICE; i++)
-        n += acid_voice(&s->v[i]);
-    if (n < NACID)
-        return -1;
-    for (i = 0; i < NVOICE; i++) {               /* let go first (the oldest), then the track's own, then the oldest */
-        const voice_t *v = &s->v[i];
-        if (acid_voice(v) && v->steal_phase != 1 && v->amp.stage == ENV_RELEASE && v->age < oldest) {
-            oldest = v->age;
-            best = i;
-        }
-    }
-    if (best >= 0)
-        return best;
-    for (i = 0; i < NVOICE; i++) {
-        const voice_t *v = &s->v[i];
-        int mine = v->trk == trk;
-        if (!acid_voice(v) || v->steal_phase == 1 || (own && !mine))
-            continue;
-        if ((mine && !own) || v->age < oldest) {
-            oldest = v->age;
-            best = i;
-            own = mine;
-        }
-    }
-    if (best < 0)                                /* all of them fading for a note already: the newest waits */
-        for (i = 0; i < NVOICE; i++)
-            if (acid_voice(&s->v[i]) && (best < 0 || s->v[i].age > s->v[best].age))
-                best = i;
-    return best;
-}
-static void acid_reserve(synth_t *s, int vi, int trk)   /* the slot for an acid note on voice vi (cn_reserve's way) */
-{
-    voice_t *v = &s->v[vi];
-    int j, i;
-    v->as_pend = ACID_NONE;
-    if (P(s, trk, TP_ENGINE) != EG_ACID)
-        return;
-    if (v->engine == EG_ACID && v_sounding(v) && v->as < NACID) {
-        v->as_pend = v->as;
-        return;
-    }
-    for (j = 0; j < NACID; j++) {
-        int used = 0;
-        for (i = 0; i < NVOICE && !used; i++)
-            used = i != vi && acid_holds(&s->v[i], j);
-        if (!used) {
-            v->as_pend = (uint8_t)j;
-            return;
-        }
-    }
 }
 
 /* the load check at a note's start (the FM-1's: there each track knows its voices' measured time): a free voice
@@ -1616,19 +763,12 @@ static int load_over(const synth_t *s, int trk)
 }
 
 /* a voice for a new note: a free one (inside the load check); else the track's oldest if it holds NVOICE_TRK
- * already; else the quietest releasing; else the oldest of all. A stolen voice fades 15 ms first. knit and cane
- * first keep to their own caps (knit_find, cn_find). */
+ * already; else the quietest releasing; else the oldest of all. A stolen voice fades 15 ms first. */
 static int find_voice(synth_t *s, int trk)
 {
     int i, best = -1, over;
     float quiet = 1e9f;
     uint32_t oldest = 0xFFFFFFFFu;
-    if (P(s, trk, TP_ENGINE) == EG_KNIT && (best = knit_find(s, trk)) >= 0)
-        return best;
-    if (P(s, trk, TP_ENGINE) == EG_CANE && (best = cn_find(s, trk)) >= 0)
-        return best;
-    if (P(s, trk, TP_ENGINE) == EG_ACID && (best = acid_find(s, trk)) >= 0)
-        return best;
     if (track_voices(s, trk) >= NVOICE_TRK) {
         for (i = 0; i < s->max_voices; i++)
             if (s->v[i].trk == trk && s->v[i].steal_phase == 0 && s->v[i].age < oldest) {
@@ -1680,8 +820,6 @@ static void voice_config_now(synth_t *s, voice_t *v)   /* a voice started mid-ch
 static void voice_take(synth_t *s, int vi, int trk, int note, int vel, int glide_ms, uint32_t tag)
 {
     voice_t *v = &s->v[vi];
-    cn_reserve(s, vi, trk);
-    acid_reserve(s, vi, trk);
     if (!v_sounding(v)) {
         int i;
         v->trk = (uint8_t)trk;
@@ -1709,9 +847,9 @@ static void voice_take(synth_t *s, int vi, int trk, int note, int vel, int glide
 }
 
 /* ---------------------------------------------------------------- notes --- */
-static inline int trk_vmode(const synth_t *s, int trk)   /* the Play page's mode; acid: legato, always (one 303) */
+static inline int trk_vmode(const synth_t *s, int trk)   /* the Play page's mode */
 {
-    return P(s, trk, TP_ENGINE) == EG_ACID ? VM_LEGATO : P(s, trk, TP_VMODE);
+    return P(s, trk, TP_VMODE);
 }
 /* a regular (not free) wave or drift LFO restarts on every note of its track */
 static void lfo_retrigger(synth_t *s, int trk)
@@ -1760,7 +898,7 @@ void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_
             t->mono_n++;
         }
         if (v && v->trk == trk && v_sounding(v) && v->steal_phase == 0) {
-            int was_held = v->held, was_rel = v->amp.stage == ENV_RELEASE;
+            int was_held = v->held;
             float ms = porta_ms(glide_ms, P(s, trk, TP_PORTA));
             v->note = (uint8_t)note;
             v->tag = tag;
@@ -1777,16 +915,7 @@ void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_
                     v->o[5] = v->o[7] = 1.0f;
                 if (v->engine == EG_SAMPLE)
                     smp_retrigger(v);
-                if (v->engine == EG_SLICE)
-                    slc_retrigger(v);
-                if (v->engine == EG_CANE)        /* the lines as they are, the exciter again */
-                    cn_strike(v, 0);
-                else if (v->engine == EG_VOILE)
-                    vo_strike(v);
             }
-            if (v->engine == EG_ACID)            /* the 303: a note held still slides (its own legato), and one
-                                                  * with a glide (the step's trick, the arp's) slides anyway */
-                acid_note(v, note, vel, (was_held && !was_rel) || glide_ms > 0);
             return;
         }
         i = find_voice(s, trk);
@@ -1804,14 +933,9 @@ static void voice_release(voice_t *v)
     }
 }
 
-/* a key let go: the release; a slice plays on to its gate's end (the GATE knob is how much of it plays, whatever the
- * note's length: slices on the steps play through as the break did) */
-static void key_release(voice_t *v)
+static void key_release(voice_t *v)              /* a key let go: the release */
 {
-    if (v->engine == EG_SLICE && v->amp.stage != ENV_RELEASE)
-        v->held = 0;
-    else
-        voice_release(v);
+    voice_release(v);
 }
 
 void synth_note_off(synth_t *s, int trk, uint32_t tag)
@@ -1848,8 +972,6 @@ void synth_note_off(synth_t *s, int trk, uint32_t tag)
             v->tag = t->mono_tag[k];
             v->pitch = (float)v->note;
             t->last_pitch = v->pitch;
-            if (v->engine == EG_ACID)            /* (sliding back to it) */
-                acid_note(v, v->note, t->mono_vel[k], 1);
         } else {
             key_release(v);
         }
@@ -1918,11 +1040,6 @@ int synth_lock_value(const synth_t *s, int trk, int param)
     return s->t[trk].lock[param];
 }
 void synth_tempo(synth_t *s, float bpm) { s->bpm = bpm < 20.0f ? 20.0f : bpm > 400.0f ? 400.0f : bpm; }
-void synth_acid_lite(synth_t *s, int on)
-{
-    (void)s;
-    acid_lite = (uint8_t)(on != 0);
-}
 void synth_limit(synth_t *s, int max_voices)
 {
     s->max_voices = (uint8_t)(max_voices < 1 ? 1 : max_voices > NVOICE ? NVOICE : max_voices);
@@ -1941,22 +1058,8 @@ int synth_voice_cost(const synth_t *s, int vi)
         return u < 1 ? 1 : u > 40 ? 40 : u;
     }
 #endif
-    if (v->engine == EG_CANE || v->engine == EG_VOILE) {   /* by the model (braids.h) */
-        int md = v->c.ex[19] > 0.0f ? (int)v->c.ex[19] : 0;
-        return v->engine == EG_CANE ? CN_COST[md < NCANE ? md : 0] : VO_COST[md < NVOILE ? md : 0];
-    }
-    if (v->engine == EG_BELLOWS)
-        return 5;                                /* (the FM-1, tools/measure_load.sh 2026-10-18: a quarter above the rest) */
-    if (v->engine == EG_KNIT)                    /* (the FM-1, tools/preset_prof.py 2026-10-19: 3 and a unit and
-                                                  * a half a unison voice, a unit an extra; clamped: a voice started
-                                                  * this block holds its last engine's values until its first chunk) */
-        return 3 + (int)(1.5f * fm_clampf(v->c.ex[2], 1.0f, (float)KNIT_MAX)) + (v->c.ex[14] > 0.0f) +
-               (v->c.ex[16] > 0.0f || v->c.ex[17] > 0.0f);
     if (v->engine == EG_RAYON)
         return 5;                                /* (the FM-1, 2026-10-19: a quarter above an ordinary voice) */
-    if (v->engine == EG_ACID)
-        return 16;                               /* (the FM-1, 2026-10-30: 17 to 19 % of a core, its 303 oversampled
-                                                  * twice: a knit unison voice's) */
     return 4;
 }
 void synth_duck_trigger(synth_t *s, int src)
@@ -1993,8 +1096,7 @@ void synth_init(synth_t *s, uint8_t (*par)[NTP])
         v->vi = (uint8_t)i;
         v->rng = 0x2545F491u * (uint32_t)(i + 1) + 1u;
         v->steal_gain = 1.0f;
-        v->engine = EG_KNIT;
-        v->tws = v->tws_pend = CN_NONE;
+        v->engine = EG_RAYON;
         for (j = 0; j < 8; j++)
             v->env_in[j] = -1.0f;                /* the caches: nothing made yet */
         v->pan_in = v->pitch_in = -1.0f;
@@ -2574,10 +1676,7 @@ static void voice_chunk(synth_t *s, voice_t *v)
     /* gains */
     vol = pf(s, trk, TP_VOLUME, dest, off) * (1.0f / 127.0f);
     lev = tp_level_gain(P(s, trk, TP_LEVEL)) * (100.0f / 127.0f);
-    {   /* (acid: the velocity is its accent, the resonance its own: neither here) */
-        const int acid = v->engine == EG_ACID;
-        vg = (acid ? 1.0f : 0.25f + 0.75f * v->vel * v->vel) * vol * vol * lev * lg * (acid ? 1.0f : 1.0f - 0.6f * res);
-    }
+    vg = (0.25f + 0.75f * v->vel * v->vel) * vol * vol * lev * lg * (1.0f - 0.6f * res);
     if (gd == GD_VOL)                            /* (a tremolo: down to silence, up to +6 dB) */
         vg *= fm_clampf(1.0f + g * (1.0f / 127.0f), 0.0f, 2.0f);
     pan = fm_clampf((pf(s, trk, TP_PAN, dest, off) - 64.0f + (float)t->perf.pan + (gd == GD_PAN ? g : 0.0f)) *
@@ -2626,15 +1725,6 @@ static void voice_chunk(synth_t *s, voice_t *v)
             c->ex[8] = a;
             c->ex[9] = b;
         }
-        if (v->engine == EG_KNIT) {            /* its second page (knit_prep) */
-            for (i = 0; i < 4; i++) {
-                float xv = (float)P(s, trk, TP_X1 + i);
-                if (i == 0)                      /* (osc 2's fine, in cents: TP_O2FINE, past the locks: the knob) */
-                    xv += (float)(s->par[trk][TP_O2FINE] - 64) * 0.01f;
-                moved |= xv != c->ex[18 + i];
-                c->ex[18 + i] = xv;
-            }
-        }
         for (i = 0; i < 4 && !moved; i++)
             moved = c->e[i] != v->e_in[i];
         if (moved) {
@@ -2643,18 +1733,6 @@ static void voice_chunk(synth_t *s, voice_t *v)
                 v->e_in[i] = c->e[i];
             voice_pitch(s, v);
         }
-    }
-    if (v->engine == EG_ACID) {                  /* the 303's pots (acid_chunk), its pitch; no voice filter */
-        for (i = 0; i < NACIDP; i++) {
-            float x = pf(s, trk, ACID_PAR[i], dest, off);
-            if (i == 0)
-                x += (float)t->perf.cut + (gd == GD_CUT ? g : 0.0f);
-            else if (i == 1 && gd == GD_RES)
-                x += g;
-            c->ex[i] = (float)(int)(fm_clampf(x, 0.0f, (float)ACID_MAX[i]) + 0.5f);
-        }
-        c->ex[NACIDP] = fm_exp2f(c->pitch_off * (1.0f / 1200.0f));
-        c->ftype = FT_DYNAMIC;
     }
     eng_chunk(v);
     char_prep(s, v, dest, off, gd == GD_CHAR ? g : 0.0f);
@@ -2693,10 +1771,7 @@ static void voice_subblock(synth_t *s, voice_t *v, int aligned)
     }
     c = &v->c;
     v->fresh = 0;
-    if (v->engine == EG_ACID) {                  /* its 303's envelopes: the voice at 1 until acid_run ends it */
-        if (v->amp.stage != ENV_OFF)
-            v->amp.level = 1.0f;
-    } else if (aligned) {
+    if (aligned) {
         env_step(&v->amp, c->amp_ar, c->amp_dc, c->amp_sl, c->amp_rc);
         env_step(&v->flt, c->flt_ar, c->flt_dc, c->flt_sl, c->flt_rc);
     }
@@ -2957,29 +2032,16 @@ static void out_stereo(voice_t *v, const float *xl, const float *xr, float *l, f
 static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1, float *s2, int m)
 {
     float bl[SY_CHUNK], br[SY_CHUNK], *xl = bl, *xr = br;
-    int i = 0, ahead = 0;
+    int i = 0;
     while (i < m) {
         int k = SUB - (v->pos & (SUB - 1));
         if (k > m - i)
             k = m - i;
         if ((v->pos & (SUB - 1)) == 0 || v->fresh)
             voice_subblock(s, v, (v->pos & (SUB - 1)) == 0);
-        if (ahead) {                             /* (knit's oscillators made for the whole call already: below) */
-            xl = bl + i;
-            xr = br + i;
-        } else if (i == 0 && (v->engine == EG_KNIT || v->engine == EG_ACID) && v->steal_phase != 1 && m <= SY_CHUNK) {
-            /* knit's oscillators depend on the chunk's values alone (its pitch, detune, gains: voice_chunk), and m
-             * stays inside a chunk: all of them at once, each oscillator's set-up once instead of a sub-block's
-             * worth of times; the filter, the character and the outputs keep their sub-blocks below (a pending
-             * steal starts its note at a sub-block's start: then a sub-block at a time). The same samples. acid too: its
-             * 303 runs on its own state alone, a whole call at once */
-            eng_run(v, bl, br, m);
-            ahead = 1;
-        } else {
-            xl = bl;
-            xr = br;
-            eng_run(v, xl, xr, k);
-        }
+        xl = bl;
+        xr = br;
+        eng_run(v, xl, xr, k);
 #define SL(ft, ch) sample_loop(v, xl, xr, l + i, r + i, s1 + i, s2 + i, k, ft, 0, ch)
         if (v->c.stereo) {                       /* the filter a channel at a time, the character, the outputs */
             flt_channel(v, xl, k, 0);
@@ -3199,23 +2261,6 @@ int synth_sounding(const synth_t *s, int v0, int v1)
             return 1;
     return 0;
 }
-int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos)
-{
-    int i, best = -1;
-    for (i = 0; i < NVOICE; i++) {
-        const voice_t *v = &s->v[i];
-        if (v->trk != trk || v->engine != EG_SLICE || v->amp.stage == ENV_OFF || v->steal_phase == 1 ||
-            v->o[4] < 0.5f || v->o[3] > 0.5f)
-            continue;
-        if (best < 0 || v->age > s->v[best].age)
-            best = i;
-    }
-    if (best < 0)
-        return 0;
-    *slice = (int)s->v[best].o[2];
-    *pos = (int32_t)s->v[best].o[0];
-    return 1;
-}
 int synth_voices_used(const synth_t *s)
 {
     int i, n = 0;
@@ -3274,28 +2319,6 @@ static const tp_info_t DRUMENV[4] = {{"lag", 0, 127, 0, PK_PCT, 0}, {"attack", 0
 static const tp_info_t DRUMFLT[4] = {{"lowcut", 0, 127, 0, PK_HZ, 0}, {"comp", 0, 127, 0, PK_PCT, 0},
                                      {"drive", 0, 127, 0, PK_PCT, 0}, {"hicut", 0, 127, 127, PK_HZ, 0}};
 static const tp_info_t NONE_P = {"-", 0, 0, 0, PK_NUM, 0};
-/* acid's pages (its 303's knobs, bass303.c's ranges and defaults, the stock 303's; tp_text_i): Filter cutoff 314 ..
- * 2394 Hz, resonance, env mod, low cut (the feedback high-pass, 350 .. 100 Hz); Envelope attack (0.3 ms .. 3 s), decay
- * (200 .. 2000 ms), accent decay (30 ms .. 3 s), length (the held note's fade, 30 ms .. 3 s); Sub drive, its type,
- * shaper (the square's); the LFO's filter and envelope knobs name them */
-static const tp_info_t ACID_F_P[4] = {{"cutoff", 0, 127, 64, PK_NUM, 0}, {"reso", 0, 127, 64, PK_PCT, 0},
-                                      {"env mod", 0, 127, 64, PK_PCT, 0}, {"low cut", 0, 127, 86, PK_NUM, 0}};
-static const tp_info_t ACID_E_P[4] = {{"attack", 0, 127, 32, PK_NUM, 0}, {"decay", 0, 127, 64, PK_NUM, 0},
-                                      {"acc dec", 0, 127, 7, PK_NUM, 0}, {"length", 0, 127, 51, PK_NUM, 0}};
-static const tp_info_t ACID_X_P[4] = {{"drive", 0, 127, 0, PK_PCT, 0}, {"type", 0, 2, 1, PK_NAMES, ACIDD_N},
-                                      {"shaper", 0, 127, 27, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
-static const char *const ACIDF_N[4] = {"cutoff", "reso", "env mod", "low cut"};
-static const char *const ACIDE_N[4] = {"attack", "decay", "acc dec", "length"};
-static const tp_info_t LFO_PARAM_ACID = {"param", 0, 3, 0, PK_NAMES, ACIDF_N};
-static const tp_info_t LFO_PARAM_ACIDE = {"param", 0, 3, 0, PK_NAMES, ACIDE_N};
-/* its mode and filter type: one each, named (the pages read a type's name by its value, whatever it is) */
-static const char *const ACIDVM_N[3] = {"legato", "legato", "legato"};
-static const char *const ACIDFT_N[NFT] = {"303", "303", "303", "303", "303", "303"};
-static const tp_info_t ACID_VM_P = {"mode", 0, 0, 0, PK_NAMES, ACIDVM_N};
-static const tp_info_t ACID_FT_P = {"type", 0, 0, 0, PK_NAMES, ACIDFT_N};
-/* knit's second page: osc 2's interval (+-24 semitones about 64) and level, the sub, the noise (knit_prep) */
-static const tp_info_t KNIT_X_P[4] = {{"osc 2", 40, 88, 64, PK_BIPST, 0}, {"level", 0, 127, 0, PK_PCT, 0},
-                                    {"sub", 0, 127, 0, PK_PCT, 0}, {"noise", 0, 127, 0, PK_PCT, 0}};
 static const tp_info_t O2FINE_P = {"osc 2 fine", 14, 114, 64, PK_CENT, 0};   /* (TP_O2FINE: +-50 cents) */
 static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the random player's octaves above) */
 /* the sample engine's second page (its loop modes only): where the loop starts in the region that plays, and how much
@@ -3369,37 +2392,10 @@ static void eknob_init(void)
                 i->kind = PK_NAMES;
                 i->names = WTNAME_N;
             }
-            if (e == EG_BELLOWS) {             /* the discrete 1..8 knobs */
-                i->lo = 1;
-                i->hi = 8;
-                i->kind = PK_NUM;
-            }
-            if (e == EG_KNIT && k == 2) {      /* the voices, 1..7 */
-                i->lo = 1;
-                i->hi = KNIT_MAX;
-                i->kind = PK_NUM;
-            }
-            if ((e == EG_CANE || e == EG_VOILE) && k == 0) {   /* the Braids models */
-                i->hi = (uint8_t)(e == EG_CANE ? NCANE - 1 : NVOILE - 1);
-                i->kind = PK_NAMES;
-                i->names = e == EG_CANE ? CANE_N : VOILE_N;
-            }
             if (e == EG_SAMPLE) {              /* sample, start, length, mode */
                 i->kind = k == 0 ? PK_SAMPLE : k == 3 ? PK_NAMES : PK_PCT;
                 i->hi = (uint8_t)(k == 0 ? smp_slots() - 1 : k == 3 ? NSM - 1 : 127);
                 i->names = k == 3 ? SMODE_N : 0;
-            }
-            if (e == EG_ACID) {                /* wave (saw, square), accent, slide (ms), tune (cents) */
-                i->kind = k == 0 ? PK_NAMES : k == 1 ? PK_PCT : PK_NUM;
-                i->hi = (uint8_t)(k == 0 ? 1 : 127);
-                i->names = k == 0 ? ACIDW_N : 0;
-            }
-            if (e == EG_SLICE) {               /* sample, slices (4 8 16 32), pitch (+-24 st), gate */
-                static const uint8_t KIND[4] = {PK_SAMPLE, PK_NAMES, PK_BIPST, PK_PCT};
-                i->kind = KIND[k];
-                i->lo = (uint8_t)(k == 2 ? 40 : 0);
-                i->hi = (uint8_t)(k == 0 ? smp_slots() - 1 : k == 1 ? SL_NCOUNT - 1 : k == 2 ? 88 : 127);
-                i->names = k == 1 ? SLICES_N : 0;
             }
         }
         lparam[e] = LFO_PARAM_ENV;
@@ -3451,25 +2447,14 @@ const tp_info_t *tp_info(int p, int engine)
         eknob_init();
     if (p >= TP_E1 && p <= TP_E4) {
         if (engine < 0 || engine >= NENGINE)
-            engine = EG_KNIT;
+            engine = EG_RAYON;
         return &eknob[engine][p - TP_E1];
     }
     if (engine == EG_MIDI && midi_cc_of(p) >= 0)
         return &MIDI_CC_P[midi_cc_of(p)];
     if (p >= TP_X1 && p <= TP_X4)                /* the engine's second page: knit's, rayon's, else none */
         return engine == EG_MIDI ? &MIDI_X_P[p - TP_X1] : engine == EG_RAYON ? &RAYON_X_P[p - TP_X1]
-             : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : engine == EG_SAMPLE ? &SAMPLE_X_P[p - TP_X1]
-             : engine == EG_ACID ? &ACID_X_P[p - TP_X1] : &NONE_P;
-    if (engine == EG_ACID) {                     /* its 303's filter and envelope; no glide, one mode, one filter */
-        if (p >= TP_CUT && p <= TP_KTRK)
-            return &ACID_F_P[p - TP_CUT];
-        if (p >= TP_A && p <= TP_R)
-            return &ACID_E_P[p - TP_A];
-        if (p == TP_VMODE || p == TP_FTYPE)
-            return p == TP_VMODE ? &ACID_VM_P : &ACID_FT_P;
-        if ((p >= TP_FA && p <= TP_FR) || p == TP_PORTA)
-            return &NONE_P;
-    }
+             : engine == EG_SAMPLE ? &SAMPLE_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_DRUMLINE) {
         if (p >= TP_A && p <= TP_R)
             return &DRUMENV[p - TP_A];
@@ -3533,9 +2518,9 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
     case TP_LX:
         if (lt == LT_WAVE || lt == LT_DRIFT) {
             switch (par[TP_LDEST] & 3) {
-            case LD_SYNTH: return &lparam[engine < NENGINE ? engine : EG_KNIT];
-            case LD_ENV: return engine == EG_ACID ? &LFO_PARAM_ACIDE : &LFO_PARAM_ENV;
-            case LD_FILTER: return engine == EG_ACID ? &LFO_PARAM_ACID : &LFO_PARAM_FLT;
+            case LD_SYNTH: return &lparam[engine < NENGINE ? engine : EG_RAYON];
+            case LD_ENV: return &LFO_PARAM_ENV;
+            case LD_FILTER: return &LFO_PARAM_FLT;
             default: return &LFO_PARAM_AMP;
             }
         }
@@ -3607,31 +2592,8 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
         put_s(num, "auto");
         return;
     }
-    if (p == TP_PORTA && v == 0 && engine != EG_ACID) {
+    if (p == TP_PORTA && v == 0) {
         put_s(num, "off");
-        return;
-    }
-    if (engine == EG_ACID && (p == TP_CUT || p == TP_KTRK || (p >= TP_A && p <= TP_R) || p == TP_E3 || p == TP_E4)) {
-        float n = (float)(v > 127 ? 127 : v) * (1.0f / 127.0f), ms;   /* (bass303.c's ranges) */
-        if (p == TP_CUT || p == TP_KTRK) {
-            hz_text(p == TP_CUT ? bass303_cutoff_hz(v > 127 ? 127 : v) : 350.0f * fm_exp2f(-n * 1.807354922f), num, unit);
-            return;
-        }
-        if (p == TP_E4) {                        /* the tuning (A4 400 .. 479 Hz) in cents */
-            int c = (int)(1200.0f * fm_log2f((440.0f + (float)(v - 64) * 0.625f) * (1.0f / 440.0f)) + (v >= 64 ? 0.5f : -0.5f));
-            if (c > 0)
-                *num++ = '+';
-            put_i(num, c);
-            put_s(unit, "ct");
-            return;
-        }
-        ms = p == TP_A ? 0.3f * fm_exp2f(n * 13.28771238f) : p == TP_D ? 200.0f * fm_exp2f(n * 3.321928095f)
-           : p == TP_E3 ? 2.0f + 358.0f * n : 30.0f + 2970.0f * n;
-        if (ms < 1.0f) {                         /* (the attack's tenths) */
-            put_f1(num, ms);
-            put_s(unit, "ms");
-        } else
-            ms_text(0.001f * ms, num, unit);
         return;
     }
     if (p == TP_E2 && engine == EG_RAYON) {       /* the ratio: "1:1 +12c" in the detuned stretch, else "3.5:1" */
@@ -3773,7 +2735,7 @@ void sound_default(uint8_t *par, int engine)
 {
     int p, k;
     if (engine < 0 || engine >= NENGINE)
-        engine = EG_KNIT;
+        engine = EG_RAYON;
     for (p = 0; p < TP_DRUM0; p++)
         par[p] = tp_info(p, engine)->def;
     par[TP_ENGINE] = (uint8_t)engine;

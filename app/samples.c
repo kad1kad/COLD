@@ -219,8 +219,7 @@ static int smp_frame(const uint8_t *p, uint32_t n)
             v[nv++] = plat_cpu_pct();
             v[nv++] = eng_voices;
             v[nv++] = eng_voices_max;
-            v[nv++] = eng_acid_lite_count;           /* (once brocade's saws under the guard; now the 303s' lite
-                                                      * switches: engine.c ACID_LITE_ON) */
+            v[nv++] = 0;                             /* (was the acid 303s' lite switches: retired, the slot kept) */
             v[nv++] = eng_guard_count;
             v[nv++] = plat_xruns();
             v[nv++] = synth_load_steals;

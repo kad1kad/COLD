@@ -15,3 +15,4 @@ All figures are from the host toolchain build, not measured on hardware.
 | 2026-11-09 | Phase 1a: weave removed (engine, data, UI), PROJ_FORMAT 21, old formats dropped | 569,616 B | 468,944 of 475,136 B | 20,172 B | 96,364 B | 352,400 B | 6,192 B (2,048 B) |
 | 2026-11-09 | Engine picker offers only kept engines; new-project defaults use rayon and jacquard (no code removed yet) | 569,552 B | 468,944 of 475,136 B | 20,172 B | 96,364 B | 352,400 B | 6,192 B (2,048 B) |
 | 2026-11-09 | Phase 1c: NTRK 8 to 5, PROJ_FORMAT 22, USB audio 8 channels | 568,108 B | 439,364 of 475,136 B | 20,172 B | 91,748 B | 327,436 B | 35,772 B (2,048 B) |
+| 2026-11-09 | Phase 1b: knit, bellows, cane, voile, acid, slice removed (code, presets, tests) | 505,336 B | 419,724 of 475,136 B | 14,156 B | 90,416 B | 315,148 B | 55,412 B (2,048 B) |

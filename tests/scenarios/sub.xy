@@ -1,6 +1,6 @@
-# the Sub page: EDIT's fourth page (after Play 2), only where the engine has a second page of knobs (knit, rayon);
-# knit's: osc 2's interval (TP_X1, +-24 semitones about 64) and level, the sub, the noise, and the screen reader says
-# them; another engine, or another track, takes the page away
+# the Sub page: EDIT's fourth page (after Play 2), only where the engine has a second page of knobs (rayon);
+# rayon's: fall, floor and keyscale (TP_X1..X3), and the screen reader says them; another engine, or another track, takes
+# the page away
 wait 300
 spin ALGO 2
 expect trk 3
@@ -14,10 +14,10 @@ expect page Play_2
 expect par3.oct 2
 turn SELECT 1
 expect page Engine
-# knit: osc 2 in unison and off, a fourth page
-knob 3 engine knit
-expect par3.engine 0
-expect par3.x1 64
+# rayon: fall, floor and keyscale, a fourth page
+knob 3 engine rayon
+expect par3.engine 1
+expect par3.x1 0
 expect par3.x2 0
 listen
 turn SELECT 3
@@ -25,24 +25,22 @@ expect page Sub
 wait 400
 said Sub
 shot sub_off.png
-spin K1 7
-expect par3.x1 71
+spin K1 40
+expect par3.x1 40
 wait 400
-said osc 2 +7 st
+said fall
 spin K2 50
 expect par3.x2 50
 spin K3 40
 expect par3.x3 40
-spin K4 20
-expect par3.x4 20
 wait 40
 shot sub_layers.png
-spin K1 -40
-expect par3.x1 40
-spin K1 60
-expect par3.x1 88
-spin K1 -17
-expect par3.x1 71
+spin K1 -30
+expect par3.x1 10
+spin K1 300
+expect par3.x1 127
+spin K1 -117
+expect par3.x1 10
 # the list: the Sub page's knobs among EDIT's
 tap SEL
 wait 40

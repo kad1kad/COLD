@@ -3470,8 +3470,6 @@ static void action_run(int a)
             preset_apply(sel_trk(), f);
             ui.preset_i = (uint16_t)f;
         }
-        if (ui.pick_engine == EG_SLICE)          /* its notes pick slices: the conductor's chords would move them */
-            set_tp(sel_trk(), TP_BRAIN, 0);
         say("ENGINE", EG_NAME[ui.pick_engine % NENGINE]);
         break;
     }
