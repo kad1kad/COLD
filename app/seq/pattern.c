@@ -37,8 +37,6 @@ void patterns_init(patterns_t *P)
             if (t == AUX_BRAIN)       /* a brain step is a beat: a chord progression at four to the bar */
                 P->pat[t][k].scale = TS_4;
         }
-    for (k = 0; k < NPATT; k++)
-        P->weave[k].len = 16;
     for (k = 0; k < NLANE; k++)
         P->lane[k].used = 0;
     P->scene[0].used = 1;             /* scene 1: pattern 1 on every track (pat[] is already 0) */
@@ -279,99 +277,3 @@ int kit_first(const step_t *st)
     return m ? __builtin_ctz(m) + 1 : 0;
 }
 
-/* ----------------------------------------------------------------- weave --- */
-static int pat_n(const tpat_t *p) { return p->len < 1 ? 1 : p->len > NSTEP ? NSTEP : p->len; }
-static int onsets(const tpat_t *p, int upto)     /* the steps with notes before step upto */
-{
-    int n = 0;
-    for (int i = 0; i < upto && i < NSTEP; i++)
-        n += !step_empty(&p->st[i]);
-    return n;
-}
-static const step_t *onset_at(const tpat_t *p, int k)   /* the k-th step with notes, cycled (0: none) */
-{
-    int len = pat_n(p), n = onsets(p, len);
-    if (!n)
-        return 0;
-    k %= n;
-    for (int i = 0; i < len; i++)
-        if (!step_empty(&p->st[i]) && k-- == 0)
-            return &p->st[i];
-    return 0;
-}
-/* notes from a step of kind fk onto a step of kind tk (WK_*): a kit's sounds as notes on a pentatonic ladder from C3
- * (sound 1 C3, 2 Eb3, 3 F3 ...), notes as a kit's sounds (note mod 11); a throw's effects only onto a throw's step.
- * 0: nothing to take (the step keeps its own) */
-static int notes_cross(const step_t *from, int fk, int tk, step_t *out)
-{
-    static const uint8_t LADDER[NDRUM] = {0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24};
-    if (fk == tk) {
-        for (int j = 0; j < SN; j++)
-            out->note[j] = from->note[j];
-        return 1;
-    }
-    if (fk == WK_FX || tk == WK_FX)
-        return 0;
-    if (fk == WK_KIT) {                          /* sounds to notes: the first four */
-        int n = 0;
-        for (int j = 0; j < SN; j++)
-            out->note[j] = 0;
-        for (int k = 1; k <= NDRUM && n < SN; k++)
-            if (kit_has(from, k))
-                out->note[n++] = (uint8_t)(48 + LADDER[k - 1]);
-        return n > 0;
-    }
-    {                                            /* notes to sounds */
-        uint32_t m = 0;
-        for (int j = 0; j < SN; j++)
-            if (from->note[j])
-                m |= 1u << (from->note[j] % NDRUM);
-        kit_set(out, m);
-        return m != 0;
-    }
-}
-void weave_step(const tpat_t *a, int ak, const tpat_t *b, int bk, int rule, uint32_t pos, step_t *out)
-{
-    int la = pat_n(a), lb = pat_n(b), ia = (int)(pos % (uint32_t)la), ib = (int)(pos % (uint32_t)lb);
-    const step_t *n;
-    switch (rule) {
-    case WV_BARS:                     /* the bars in turn, counted from the start: A's, B's, A's ... */
-    case WV_STEPS:                    /* the steps in turn */
-        *out = a->st[ia];
-        if (rule == WV_BARS ? (pos / 16u) & 1u : pos & 1u) {
-            step_t keep = *out;
-            *out = b->st[ib];         /* B's step, its notes as A's kind (none to take: A's step stays) */
-            if (!step_empty(&b->st[ib]) && !notes_cross(&b->st[ib], bk, ak, out))
-                *out = keep;
-        }
-        break;
-    case WV_RHYTHM:                   /* A's step (its rhythm, velocity, tricks) with B's next notes */
-        *out = a->st[ia];
-        if (!step_empty(out) && (n = onset_at(b, (int)(pos / (uint32_t)la) * onsets(a, la) + onsets(a, ia))))
-            notes_cross(n, bk, ak, out);
-        break;
-    default:                          /* WV_NOTES: B's step (its rhythm) with A's next notes */
-        *out = b->st[ib];
-        if (step_empty(out))
-            break;
-        if (!(n = onset_at(a, (int)(pos / (uint32_t)lb) * onsets(b, lb) + onsets(b, ib))) || !notes_cross(n, ak, ak, out))
-            if (!notes_cross(&b->st[ib], bk, ak, out))
-                *out = a->st[ia];     /* (nothing either way: A's step) */
-        break;
-    }
-}
-
-void pattern_woven(tpat_t *out, const tpat_t *a, int ak, const tpat_t *b, int bk, int rule)
-{
-    int la = pat_n(a), lb = pat_n(b), len = la > lb ? la : lb;
-    if (rule == WV_BARS && len < 32)             /* (the bars in turn need two of them) */
-        len = len * 2 > NSTEP ? NSTEP : len * 2;
-    *out = *a;
-    out->len = (uint8_t)len;
-    for (int i = 0; i < NSTEP; i++) {
-        if (i < len)
-            weave_step(a, ak, b, bk, rule, (uint32_t)i, &out->st[i]);
-        else
-            zero(&out->st[i], sizeof out->st[i]);
-    }
-}

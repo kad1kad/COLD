@@ -11,7 +11,7 @@
 /* The code keeps its first names; the screen and the manual say: AUX_BRAIN the conductor (COND), AUX_PUNCH the
  * throws (THROW), components (SC_*) tricks, the drumline engine the kit, the maestro player strum. */
 #define NTRK 8                        /* instrument tracks 1-8 */
-enum { AUX_BRAIN = NTRK, AUX_PUNCH, AUX_FX1, AUX_FX2, AUX_WEAVE, NALLTRK };   /* (WEAVE: its own steps, wvpat_t) */
+enum { AUX_BRAIN = NTRK, AUX_PUNCH, AUX_FX1, AUX_FX2, NALLTRK };   /* (the WEAVE track after FX II is gone: format 21) */
 #define NSEQT (AUX_PUNCH + 1)         /* sequenced tracks: 1-8, brain, punch */
 #define NPATT 8                       /* patterns per track */
 #define NSTEP 64                      /* 4 bars of 16 */
@@ -153,38 +153,9 @@ typedef struct {
     uint8_t used;                     /* 1 = the scene exists */
     uint16_t mute;                    /* bit t = track t muted (NSEQT bits) */
     uint8_t brain_key, brain_scale, brain_deg;   /* the brain's state in this scene */
-    uint8_t weave;                    /* the WEAVE track's pattern */
     uint16_t kmute[NKITM];            /* each kit track's sounds muted (bit k: sound k + 1): the first kit track (by
                                        * track number) in kmute[0], the next in [1] ... (kit_slot) */
-} scene_t;                            /* 26 bytes */
-/* format 11's scene (one mute mask for every kit), read by project.c's migration */
-typedef struct {
-    uint8_t pat[NSEQT];
-    uint8_t used;
-    uint16_t mute;
-    uint8_t brain_key, brain_scale, brain_deg;
-    uint8_t weave;
-    uint16_t kmute;
-} scene11_t;                          /* 20 bytes */
-/* format 10's scene (0.5-beta's: 16 of them, no kit mutes), read by project.c's migration */
-typedef struct {
-    uint8_t pat[NSEQT];
-    uint8_t used;
-    uint16_t mute;
-    uint8_t brain_key, brain_scale, brain_deg;
-    uint8_t weave;
-} scene10_t;                          /* 18 bytes */
-#define NSCENE10 16
-/* the WEAVE track's step: the tracks it weaves (a bit each: T1-T8, COND, THROW) and for how long, in sixteenths
- * (0 = one); its pattern: steps on the sequencer's sixteenths, len of them (16, 32, 48 or 64) */
-typedef struct {
-    uint8_t m0, m1, len;
-} wv_step_t;
-static inline uint32_t wv_mask(const wv_step_t *w) { return (uint32_t)w->m0 | (uint32_t)w->m1 << 8; }
-typedef struct {
-    uint8_t len, rsv[3];
-    wv_step_t st[NSTEP];
-} wvpat_t;                            /* 18 bytes */
+} scene_t;                            /* 24 bytes */
 
 typedef struct {
     uint8_t scene;                    /* 0..15 */
@@ -210,7 +181,6 @@ static inline int hit_plain(const hit_t *h) { return !h->cond && !h->comp && !h-
 /* the whole pattern store: the project's (in the pool) */
 typedef struct {
     tpat_t pat[NSEQT][NPATT];
-    wvpat_t weave[NPATT];             /* the WEAVE track's patterns */
     lane_t lane[NLANE];
     scene_t scene[NSCENE];
     song_t song;
@@ -236,15 +206,3 @@ void lane_pool_free(lane_t *L, int trk);
 extern volatile uint16_t lane_epoch;     /* bumped when a lane is allocated or freed (the ISR's pool cache) */
 void pattern_clear_locks(lane_t *L, int trk, int pat);   /* (not the kit tune lane: that is notes) */
 void cond_ab(int k, int *a, int *b);  /* COND_AB + k -> A:B */
-/* a weave: pattern a (the track's) crossed with b (WITH). weave_step: the step the weave plays at pos, the track's
- * steps since it started (each pattern loops by its own length): WV_BARS the bars in turn (a's, b's, ...), WV_STEPS
- * the steps in turn, WV_RHYTHM a's steps with b's notes in their order, cycled, WV_NOTES b's steps with a's notes.
- * The sequencer plays it live; KEEP AS PATTERN writes it */
-enum { WV_BARS, WV_STEPS, WV_RHYTHM, WV_NOTES, NWV };
-enum { WK_MEL, WK_KIT, WK_FX };       /* a track's kind of steps: notes (synths, the conductor), a kit's sounds, throws */
-/* ak / bk: a's and b's kinds; notes cross between them (pattern.c notes_cross: a kit's sounds as a pentatonic ladder
- * from C3, notes as sounds by note mod 11, throws only with throws) */
-void weave_step(const tpat_t *a, int ak, const tpat_t *b, int bk, int rule, uint32_t pos, step_t *out);
-/* the weave written whole into out (KEEP AS PATTERN): a's settings, the longer one's length (by bars: two bars at
- * least), each step weave_step's from the start */
-void pattern_woven(tpat_t *out, const tpat_t *a, int ak, const tpat_t *b, int bk, int rule);

@@ -34,35 +34,14 @@ uint8_t proj_slot;
 #define STREAM_HDR 16u                  /* in the first object: format, raw length, raw CRC, packed length */
 #define STREAM_CAP ((uint32_t)NSTREAM * (PLAT_STORE_MAX - 4u) - (STREAM_HDR - 4u))
 #define RAW_LEN sizeof(patterns_t)
-/* formats 12..17: the store without the kits' hit settings (pats.hit, last: none then) */
-#define RAW_LEN17 (sizeof(patterns_t) - sizeof pats.hit)
-/* format 10 (0.5-beta): the same store but 16 scenes of scene10_t, the song after them */
-#define RAW_LEN10 (RAW_LEN17 - sizeof pats.scene + NSCENE10 * sizeof(scene10_t))
-/* format 11: 32 scenes of scene11_t (one kit mute mask for every kit) */
-#define RAW_LEN11 (RAW_LEN17 - sizeof pats.scene + NSCENE * sizeof(scene11_t))
-typedef char scene_sizes[(sizeof(scene10_t) == 18 && sizeof(scene11_t) == 20 && sizeof(scene_t) == 26) ? 1 : -1];
-typedef char songs_apart[(NSCENE10 * sizeof(scene10_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t) &&
-                          NSCENE * sizeof(scene11_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t)) ? 1 : -1];   /* (an
-                                                   * old song's bytes end before the new song's start) */
-static uint8_t load_format;                       /* the format of the project being loaded (10, 11: migrated) */
-static uint8_t migrated = 0xFF;                   /* the slot loaded from an older format and not saved since (0xFF
-                                                   * none): its next touch saves it whole, never its settings alone
-                                                   * beside the old format's patterns */
-#define FORMAT_OK(f) ((f) >= 10u && (f) <= PROJ_FORMAT)   /* the formats a slot loads (migrate_old, before 13 glfo_defaults) */
+/* Only the current format loads (21: the WEAVE track gone). Older projects are left alone in their slot, not loaded and
+ * not written over (project_load: proj_slot NPROJ); there were no users yet, so no migration was written */
+#define FORMAT_OK(f) ((f) == PROJ_FORMAT)
 typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16 MB; the header's length is a u32) */
-/* the settings object (format 15 on): the settings before the tracks as they are (SET_HDR), the packed tracks' length,
- * then the tracks packed (lz.c: a synth track's kit keys and an aux track's sound are mostly defaults). Formats 10..14
- * stored them raw, each track's par[] TP_DRUMX0 long (the keys' knobs 5..8 came in 15): SET_OLD bytes in all */
+/* the settings object: the settings before the tracks as they are (SET_HDR), the packed tracks' length, then the tracks
+ * packed (lz.c: a synth track's kit keys and an aux track's sound are mostly defaults) */
 #define SET_HDR ((uint32_t)offsetof(settings_t, trk))
-#define NTP14 ((uint32_t)TP_DRUMX0)
-#define TRK14 (NTP14 + NAME_LEN + 4u)
-#define SET_OLD ((SET_HDR + NALLTRK * TRK14 + 3u) & ~3u)   /* (the struct padded to its 4-byte alignment) */
-#define NTP15 ((uint32_t)TP_O2FINE)                       /* format 15's par[]: up to the keys' knobs 5..8 */
-#define TRK15 (NTP15 + NAME_LEN + 4u)
-#define NTP18 ((uint32_t)TP_RUP)                          /* formats 16..18's: up to knit's osc 2 fine */
-/* the random player's one octave knob before 19 (TP_P4, 0..24: PR #13's path about its centre) as down * 4 + up */
-static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
-typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
+typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX) ? 1 : -1];
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
 typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 2u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
 #define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
@@ -357,7 +336,7 @@ static int settings_valid(settings_t *s)
         if (t >= AUX_FX1 && p[TP_ENGINE] >= NFXPICK)
             return 0;
         if (t < NTRK)
-            keys_fix(p, s->format < 17u);
+            keys_fix(p, 0);
         if (t < NTRK)
             for (k = 0; k < NTP; k++) {
                 const tp_info_t *i = tp_info_par(k, p);   /* the ranges depend on the player and LFO type */
@@ -614,57 +593,19 @@ static int st_get(void *ctx)
     return io_buf[s->pos++];
 }
 
-/* an older format's store (10: 16 scenes of scene10_t; 11: 32 of scene11_t), unpacked at the start of pats, made
- * this format's: its scenes spread to their new size (format 10's other 16 unused; its kits' sounds unmuted;
- * format 11's one mask for every kit, each kit's), the song moved after them */
-static void migrate_old(int fmt)
-{
-    uint8_t *sc = (uint8_t *)pats.scene;
-    const uint32_t osz = fmt == 10 ? sizeof(scene10_t) : sizeof(scene11_t), on = fmt == 10 ? NSCENE10 : NSCENE;
-    memcpy(&pats.song, sc + on * osz, sizeof pats.song);   /* (apart: songs_apart) */
-    for (int i = (int)on - 1; i >= 0; i--) {             /* (from the last: each moves up, over none not yet read) */
-        scene11_t o;
-        memset(&o, 0, sizeof o);
-        memcpy(&o, sc + (uint32_t)i * osz, osz);          /* (format 10's: the same fields, no kmute) */
-        memset(&pats.scene[i], 0, sizeof pats.scene[i]);
-        memcpy(pats.scene[i].pat, o.pat, NSEQT);
-        pats.scene[i].used = o.used;
-        pats.scene[i].mute = o.mute;
-        pats.scene[i].brain_key = o.brain_key;
-        pats.scene[i].brain_scale = o.brain_scale;
-        pats.scene[i].brain_deg = o.brain_deg;
-        pats.scene[i].weave = o.weave;
-        for (int k = 0; k < NKITM; k++)
-            pats.scene[i].kmute[k] = o.kmute;
-    }
-    if (on < NSCENE)
-        memset(&pats.scene[on], 0, (NSCENE - on) * sizeof pats.scene[0]);
-}
-
-/* 0 = loaded; -1 = not there or not good (pats then holds garbage). An older format's (load_format) as it was
- * saved, then migrated */
+/* 0 = loaded; -1 = not there or not good (pats then holds garbage) */
 static int load_stream(int n, uint32_t prev)
 {
     uint8_t *raw = (uint8_t *)&pats;
     uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), len = get32(io_buf + 4);
     st_in_t s = {0, n, STREAM_HDR, plen, prev};
     lz_src_t src = {st_get, &s};
-    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN17 && len != RAW_LEN10 && len != RAW_LEN11) ||
-        plen > STREAM_CAP)
-        return -1;                                /* (its own length says its format: settings saved alone, as
-                                                   * this format's, before a power cut beside format 10's patterns) */
+    if (n < (int)STREAM_HDR || len != RAW_LEN || plen > STREAM_CAP)
+        return -1;                                /* (its own length says its format: another format's patterns) */
     stored_known[stream_obj[0]] = !(prev & 1u);
     stored_hash[stream_obj[0]] = hash_of(io_buf, (uint32_t)n);
     if (lz_decompress(&src, raw, len) || crc32_of(raw, len) != crc)
         return -1;
-    if (len != RAW_LEN)                           /* (an older store: no hit settings) */
-        memset(pats.hit, 0, sizeof pats.hit);
-    if (len == RAW_LEN17 && load_format > 17u)
-        load_format = 17u;
-    else if (len == RAW_LEN10 || len == RAW_LEN11) {
-        load_format = len == RAW_LEN10 ? 10u : 11u;
-        migrate_old(load_format);
-    }
     packed_len = plen;
     return 0;
 }
@@ -703,62 +644,22 @@ static int set_get(void *ctx)
     s->left--;
     return *s->p++;
 }
-/* the settings object in io_buf (n bytes) into proj: this format's packed, or format 10..14's raw (each key's knobs
- * 5..8 then its model's defaults); 0 = done (proj then needs settings_valid), -1 = not one */
+/* the settings object in io_buf (n bytes) into proj; 0 = done (proj then needs settings_valid), -1 = not one (or another
+ * format's) */
 static int settings_unpack(int n)
 {
-    uint32_t fmt, i;
-    if (n < (int)(SET_HDR + 4u) || get32(io_buf) != PROJ_MAGIC)
+    uint32_t i;
+    set_in_t in;
+    lz_src_t src = {set_get, &in};
+    if (n < (int)(SET_HDR + 4u) || get32(io_buf) != PROJ_MAGIC || !FORMAT_OK(get32(io_buf + 4)))
         return -1;
-    fmt = get32(io_buf + 4);
-    if (fmt >= 15u && fmt <= PROJ_FORMAT) {
-        set_in_t in = {io_buf + SET_HDR + 4u, get32(io_buf + SET_HDR)};
-        lz_src_t src = {set_get, &in};
-        if (in.left > (uint32_t)n - SET_HDR - 4u)
-            return -1;
-        for (i = 0; i < SET_HDR; i++)
-            ((uint8_t *)&proj)[i] = io_buf[i];
-        uint32_t ntp = fmt >= 19u ? (uint32_t)NTP : fmt >= 16u ? NTP18 : NTP15, tl = ntp + NAME_LEN + 4u;
-        if (fmt >= 19u)
-            return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
-        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..18: their tracks shorter, */
-            return -1;
-        for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */
-            const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * tl;
-            uint8_t *d = (uint8_t *)&proj.trk[t];
-            uint8_t *par = proj.trk[t].par;
-            for (i = tl; i-- > ntp;)            /* the name and rsv after the new parameters */
-                d[i + (NTP - ntp)] = o[i];
-            for (i = ntp; i-- > 0;)
-                d[i] = o[i];
-            if (ntp <= (uint32_t)TP_O2FINE)
-                par[TP_O2FINE] = 64;
-            par[TP_RUP] = 0;
-            if (t < NTRK && par[TP_PLAYER] % NPL == PL_RAND) {   /* (the octave knob: down and up) */
-                uint8_t v = OLD_OCT[par[TP_P4] < 25u ? par[TP_P4] : 12u];
-                par[TP_P4] = (uint8_t)(v >> 2);
-                par[TP_RUP] = (uint8_t)(v & 3u);
-            }
-        }
-        return 0;
-    }
-    if (n != (int)SET_OLD || !FORMAT_OK(fmt))
+    in.p = io_buf + SET_HDR + 4u;
+    in.left = get32(io_buf + SET_HDR);
+    if (in.left > (uint32_t)n - SET_HDR - 4u)
         return -1;
     for (i = 0; i < SET_HDR; i++)
         ((uint8_t *)&proj)[i] = io_buf[i];
-    for (int t = 0; t < NALLTRK; t++) {
-        const uint8_t *o = io_buf + SET_HDR + (uint32_t)t * TRK14;
-        trk_t *tr = &proj.trk[t];
-        memcpy(tr->par, o, NTP14);
-        memcpy(tr->name, o + NTP14, NAME_LEN);
-        memcpy(tr->rsv, o + NTP14 + NAME_LEN, 4);
-        for (int k = 0; k < DL_NSOUND; k++)
-            for (int j = 0; j < DPX_N; j++)
-                tr->par[TP_DRUMX(k, j)] = DM_DEFAULT2[tr->par[TP_DRUM(k, DP_MODEL)] % NDM][j];
-        tr->par[TP_O2FINE] = 64;
-        tr->par[TP_RUP] = 0;
-    }
-    return 0;
+    return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
 }
 
 /* ---- load, save ----------------------------------------------------------------------------- */
@@ -780,34 +681,10 @@ int project_load(int slot)
     slot_objects(slot);
     project_defaults();
     packed_len = 0;
-    load_format = PROJ_FORMAT;
     n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, sizeof io_buf);
     if (n > 0)
         stored_hash[OBJ_PROJ(slot, 0)] = hash_of(io_buf, (uint32_t)n);
     if (settings_unpack(n) == 0 && settings_valid(&proj)) {
-        load_format = (uint8_t)proj.format;
-        proj.format = PROJ_FORMAT;                    /* (an older one migrated: saved as this format next) */
-        if (load_format < 13u)                        /* (before 13 the conductor's LFO slots held a knit's defaults:
-                                                       * the shared LFO from its start) */
-            glfo_defaults(proj.trk[AUX_BRAIN].par);
-        if (load_format < 20u)                        /* (before 20 no PING WIDTH: the full bounce they had) */
-            proj.trk[AUX_FX1].par[TP_FX_WIDTH] = proj.trk[AUX_FX2].par[TP_FX_WIDTH] = 127;
-        if (load_format < 14u)                        /* (before 14, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
-            for (int t = 0; t < NTRK; t++) {
-                uint8_t ft = proj.trk[t].par[TP_FTYPE];
-                if (ft == 4u || ft == 5u)
-                    proj.trk[t].par[TP_FTYPE] = (uint8_t)(9u - ft);
-            }
-        if (load_format == 10u) {                     /* 0.5-beta had no way to set a track's MIDI channel: they are
-                                                       * all off there. As a new project's: notes out, MIDI OUT on */
-            proj.send_notes = 1;
-            for (int t = 0; t < NTRK; t++)
-                if (!proj.trk[t].par[TP_CHAN])
-                    proj.trk[t].par[TP_CHAN] = 1;
-        }
-        for (int t = 0; t < NTRK; t++)                /* (before C3 a track held its channel, 1-16: now MIDI OUT on) */
-            if (proj.trk[t].par[TP_CHAN])
-                proj.trk[t].par[TP_CHAN] = 1;
         stored_known[OBJ_PROJ(slot, 0)] = 1;
     } else {
         project_defaults();                           /* (an unpack may have left part of it) */
@@ -839,7 +716,6 @@ int project_load(int slot)
     } else {
         bad = 1;
     }
-    migrated = !bad && load_format != PROJ_FORMAT ? (uint8_t)slot : 0xFF;
     return bad ? -1 : 0;
 }
 
@@ -864,8 +740,7 @@ int project_save(int slot)
     proj.scene = seq.scene;
     return project_write(slot);
 }
-/* the project as it is in proj and pats, into its slot (project_save takes the sequencer's live values first; a
- * migrated project's first touch does not: just loaded, they are not the sequencer's yet) */
+/* the project as it is in proj and pats, into its slot (project_save takes the sequencer's live values first) */
 static int project_write(int slot)
 {
     int rc, n;
@@ -882,10 +757,7 @@ static int project_write(int slot)
     }
     if ((rc = save_buf(OBJ_PROJ(slot, 0), (uint32_t)n)) != 0)
         return rc < 0 ? -1 : rc;
-    rc = save_stream();
-    if (rc == 0 && migrated == slot)
-        migrated = 0xFF;                          /* (saved whole: this format now) */
-    return rc;
+    return save_stream();
 }
 
 /* the save count (settings rsv[4..7]): every save and every load takes the next, so the highest is the slot used
@@ -923,8 +795,6 @@ int project_touch(int slot)                       /* (only the settings change: 
     int n;
     if (slot < 0 || slot >= NPROJ)
         return -1;
-    if (migrated == slot)                         /* (an older format's patterns there: the whole project, now) */
-        return project_write(slot) == 0 ? 0 : -1;
     count_next();
     n = settings_pack();
     return n < 0 || save_buf(OBJ_PROJ(slot, 0), (uint32_t)n) < 0 ? -1 : 0;

@@ -128,28 +128,10 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 20u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
-                                         * 20: an FX track's PING WIDTH (TP_FX_WIDTH, its TP_X1; older: 127, full);
-                                         * 19: the random player's octaves up (TP_RUP), the tracks' last parameter;
-                                         *     TP_P4 its octaves down, 0..3 (was one knob: project.c OLD_OCT);
-                                         * 18: the kits' hit settings (pats.hit: a sound's own chance and tricks);
-                                         * 16: knit's osc 2 fine (TP_O2FINE), the tracks' last parameter;
-                                         * 15: a kit key's knobs 5..8 (TP_DRUMX: an eight-knob model's second page), after
-                                         * the keys; the settings object's tracks packed (project.c settings_pack);
-                                         * 14: the filter type off (FT_DYNAMIC) moved past bp12 (TP_FTYPE 4 and 5 swap);
-                                         * 13: the shared LFO (the conductor's LFO slots: glfo_defaults on an older one);
-                                         * 12: a scene's kit sound mutes per kit track (scene_t kmute[NKITM]);
-                                         * 11: 32 scenes, a scene's kit sound mutes (one mask);
-                                         * 10: a kit key's own sends (DP_SEND1/2, the kit's track sends gone), a
-                                         *     parameter's index past a byte (a lane's 16 bits, LANE_TUNE moved);
-                                         * 9: the sound's octave (TP_OCT) moved TP_PLAYER on;
-                                         * 8: the WEAVE track (its patterns, its settings: a track more);
-                                         * 7: a kit step's sounds as bits (pattern.h kit_*: any of the 11);
-                                         * 6: the engine's second page (TP_X1..X4: brocade's sub) moved TP_PLAYER on
-                                         * (and every index after it); 5: the master's pump (master[] 12 -> 16
-                                         * bytes, out of rsv[]); 4: no tape (its track and send), the reverb's modes, the master's tape,
-                                         * and each drum key its envelope and filter (DP_N 9 -> 18); 2: the character
-                                         * stage moved TP_PLAYER on (and every index after it) */
+#define PROJ_FORMAT 21u                 /* 21: the WEAVE track and the scenes' weave pattern gone (a track and a byte
+                                         * less). Only this format loads: the older ones (10..20, LOOM-8's) were dropped,
+                                         * not migrated (no users yet; an older project is left alone in its slot). Their
+                                         * history is in git (project.c before COLD's 2026-11-09 weave removal) */
 #define NUSER_PRESETS 16
 #define NAME_LEN 12
 
