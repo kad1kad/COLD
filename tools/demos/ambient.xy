@@ -1,5 +1,5 @@
 # LOOM-8 demo: ambient, 64 BPM, D major. The synth engines and the kit's models only (no samples: publishable).
-# (Rendered by loom_host directly: it has no bank.)
+# (Rendered by cold_host directly: it has no bank.)
 #   T1 kit: barely there (a low kick on the one, a shaker breathing, the string model now and then)
 #   T2 organ "chapel": the chords, a soft pipe, dark   T3 voile "ninon": the choir above them, a bar a note
 #   T4 swarm "angora": a theremin, four notes in four bars   T5 tines "lullaby": a music box, sparse
@@ -135,31 +135,15 @@ notes 6 1 17 15 90 B1
 notes 6 1 33 15 90 G1
 notes 6 1 49 15 90 A1
 
-# ---- the weaves, set up (each track's ARP, Weave page): T5 with T5's P2 by notes, T1 with T1's P2 by steps
-weaveset 5 5 2 pitch
-weaveset 1 1 2 steps
-# the WEAVE track, as recorded: P1 empty; P2 the bells woven the four bars, the pulse the last two; P3 the bells,
-# the outro's first two bars
-wvpat 1 16
-wvpat 2 64
-wvstep 2 1 5 64
-wvstep 2 33 1 32
-wvpat 3 64
-wvstep 3 1 5 32
-
 # ---- scenes and the song (the mask: T1..T8, COND, THROW; x = muted)
 scenedef 1 1 1 1 1 1 1 1 1
 scenemute 1 x..xxxxx
-sceneweave 1 1
 scenedef 2 1 1 1 1 1 1 1 1
 scenemute 2 x..x..xx
-sceneweave 2 1
 scenedef 3 1 1 1 1 1 1 1 1
 scenemute 3 ......xx
-sceneweave 3 2
 scenedef 4 1 1 1 1 1 1 1 1
 scenemute 4 x..x.xxx
-sceneweave 4 3
 song 1:4 2:4 3:4 4:4
 songloop 0
 

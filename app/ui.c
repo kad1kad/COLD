@@ -214,7 +214,7 @@ static void set_tp(int trk, int p, int v)
             engine_set(trk, TP_DRUMX(key, k), par[TP_DRUMX(key, k)]);
         }
         if (v % NDM >= DM_909CH && v % NDM <= DM_909CRASH && !d909_res_ok())
-            say_no("NO SAMPLES", "reinstall LOOM-8");   /* (the 909 cymbals: the installer writes them beside it) */
+            say_no("NO SAMPLES", "reinstall COLD");   /* (the 909 cymbals: the installer writes them beside it) */
         mark_dirty();
         return;
     }
@@ -346,6 +346,13 @@ static int name_is(const char *a, const char *b) /* two preset names (NAME_LEN, 
     return 1;
 }
 static int preset_apply(int trk, int i);
+static int eg_step(int cur, int d)               /* the next engine the picker offers, up (d > 0) or down; none: as it is */
+{
+    for (int e = cur + (d > 0 ? 1 : -1); e >= 0 && e < NENGINE; e += d > 0 ? 1 : -1)
+        if (eg_offered(e))
+            return e;
+    return cur;
+}
 /* PRESETS: the next sound of the track's own engine (its factory presets, then the user presets saved from it);
  * the message says what it is for and where: "PAD 3/16 MUSLIN PAD" (a user preset: "PRESET 17/18") */
 static void preset_step(int trk, int d)
@@ -474,15 +481,13 @@ static void undo_master(void)
         return;
     memcpy(undo.u.master, proj.master, NMS);
 }
-static void undo_arr(void)                        /* before a change to the song, the scenes or the weave */
+static void undo_arr(void)                        /* before a change to the song or the scenes */
 {
     if (undo_run(U_ARR, 0, 0, 0, UNDO_RUN_MS))
         return;
     undo.u.a.song = pats.song;
     memcpy(undo.u.a.scene, pats.scene, sizeof pats.scene);
-    memcpy(undo.u.a.weave, pats.weave, sizeof pats.weave);
 }
-static void weave_apply(int t);
 static void do_undo(int redo)
 {
     char t[24];
@@ -533,7 +538,6 @@ static void do_undo(int redo)
         scene_t live = pats.scene[cur_scene()];
         swap_bytes(&pats.song, &undo.u.a.song, sizeof pats.song);
         swap_bytes(pats.scene, undo.u.a.scene, sizeof pats.scene);
-        swap_bytes(pats.weave, undo.u.a.weave, sizeof pats.weave);
         {                                        /* the scene playing keeps its patterns and mutes: they are live */
             scene_t *c = &pats.scene[cur_scene()];
             memcpy(c->pat, live.pat, sizeof c->pat);
@@ -542,12 +546,9 @@ static void do_undo(int redo)
             c->brain_key = live.brain_key;
             c->brain_scale = live.brain_scale;
             c->brain_deg = live.brain_deg;
-            seq.wv_ppat = c->weave;
         }
         if (ui.name_slot > pats.song.len)
             ui.name_slot = pats.song.len;
-        for (int tr = 0; tr < NSEQT; tr++)
-            weave_apply(tr);
         s_cat(t, "song and scenes");
         break;
     }
@@ -1261,13 +1262,13 @@ static void track_select(int t)
         ui.dsound = 0;
 }
 /* ALGORITHM (and PRESETS on Mix) through the tracks the page has: Mix its strips (T1-T8, FX I, FX II), every other
- * page the tracks that play (T1-T8, the conductor, the throws, the weave) */
+ * page the tracks that play (T1-T8, the throws) */
 static void track_step(int e)
 {
-    static const uint8_t MIXT[10] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2};
-    static const uint8_t SEQT[11] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_BRAIN, AUX_PUNCH, AUX_WEAVE};
+    static const uint8_t MIXT[7] = {0, 1, 2, 3, 4, AUX_FX1, AUX_FX2};
+    static const uint8_t SEQT[6] = {0, 1, 2, 3, 4, AUX_PUNCH};   /* (the conductor is hidden) */
     const uint8_t *L = ui.page == P_MIX ? MIXT : SEQT;
-    int N = ui.page == P_MIX ? 10 : 11, cur = sel_trk(), i, d = e > 0 ? 1 : -1, n = e > 0 ? e : -e;
+    int N = ui.page == P_MIX ? 7 : 6, cur = sel_trk(), i, d = e > 0 ? 1 : -1, n = e > 0 ? e : -e;
     for (i = 0; i < N && L[i] != cur; i++)
         ;
     if (i == N) {                                /* (not in the list: from where it would sit) */
@@ -1297,7 +1298,6 @@ static void solo_end(void)
 #define SOLO_TWICE_MS 350u                       /* Mix: a track's key pressed again this soon after a tap: a double tap */
 /* the keys as a keyboard for the selected track (the play pages; Steps with SEQ held or while recording): they
  * play it and set what a step press writes; step record writes the cursor step */
-static void weave_key(int k, int on);           /* (below: the weave) */
 /* a sound page's own button held on its pages (EDIT on Engine...): the keys play, and ALGORITHM turns EDIT's engine */
 static int page_btn_held(int b)
 {
@@ -1316,11 +1316,6 @@ static void keyboard_down(int k)
         ui.nrem = (uint8_t)(ui.nchord > SN ? SN : ui.nchord);
         if (srec)
             step_rec_key(key_note(k));
-        return;
-    }
-    if (trk == AUX_WEAVE) {                      /* the WEAVE track: white keys 1-10 weave T1-T8, COND, THROW */
-        ui.kmode[k] = KM_WEAVE;
-        weave_key(k, 1);
         return;
     }
     if (trk == AUX_PUNCH) {
@@ -1411,7 +1406,6 @@ static void bar_key(int k, int b)
 static void ask_end(int yes);
 static void act_clear_scene(void);
 static void act_save_slot(int slot);
-static void weave_set(int t, int from, int pat, int rule);   /* (below: the weave) */
 static void pattern_octave(int t, int d);          /* (below) */
 static void key_down(int k)
 {
@@ -1481,7 +1475,7 @@ static void key_down(int k)
                 }
             }
             scene_key(k, ui.scene_pg * 16 + w, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
-        } else if (b >= 0 && b < NSEQT) {
+        } else if (b >= 0 && b < NSEQT && b != AUX_BRAIN) {
             ui.kmode[k] = KM_MUTE;
             ui.knote[k] = (uint8_t)b;
             if (is_drum(b))                         /* a kit: muted when let go, unless its sounds were (kit_mute_hold) */
@@ -1504,37 +1498,6 @@ static void key_down(int k)
             tpat(trk)->scale = BAR_SCALE_KEY[b];
             ui.kmode[k] = KM_SCALE;
             say("SCALE", TS_NAME[BAR_SCALE_KEY[b]]);
-            mark_dirty();
-        }
-        return;
-    }
-    if (p == P_STEPS && trk == AUX_WEAVE) {      /* WEAVE's steps: a tap adds the tracks last woven, again clears;
-                                                  * held: black keys 1-10 its tracks, a later white key its end */
-        wvpat_t *wp = &pats.weave[pats.scene[cur_scene()].weave % NPATT];
-        if (w >= 0 && ui.wv_step >= NSTEP) {
-            ui.kmode[k] = KM_STEP;
-            ui.wv_step = (uint8_t)(ui.bar * 16 + w);
-            ui.held_used = 0;
-        } else if (w >= 0) {
-            int s = ui.bar * 16 + w, l = s - ui.wv_step + 1;
-            ui.kmode[k] = KM_IDLE;
-            if (l > 0) {
-                undo_arr();
-                wp->st[ui.wv_step].len = (uint8_t)(l > NSTEP ? NSTEP : l);
-                ui.held_used = 1;
-                mark_dirty();
-            }
-        } else if (b >= 0 && b < NSEQT && ui.wv_step < NSTEP) {
-            wv_step_t *st = &wp->st[ui.wv_step];
-            uint32_t m = wv_mask(st) ^ 1u << b;
-            undo_arr();
-            ui.kmode[k] = KM_IDLE;
-            st->m1 = (uint8_t)(m >> 8);
-            st->m0 = (uint8_t)m;
-            if (!st->len)
-                st->len = 4;
-            ui.held_used = 1;
-            say(TRACK_NAME[b], m >> b & 1u ? "weaves here" : "not here");
             mark_dirty();
         }
         return;
@@ -1611,7 +1574,7 @@ static void key_down(int k)
     }
     if (p == P_MIX) {
         if (b >= 0) {
-            static const uint8_t T[11] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2, 0xFF};
+            static const uint8_t T[11] = {0, 1, 2, 3, 4, AUX_FX1, AUX_FX2, 0xFF, 0xFF, 0xFF, 0xFF};
             if (T[b] == 0xFF)
                 return;
             ui.kmode[k] = KM_SOLO;               /* a tap mutes it, a hold solos it (holds()) */
@@ -1621,22 +1584,6 @@ static void key_down(int k)
         }
         keyboard_down(k);                        /* (the white keys play: the keys play wherever a page gives them no
                                                   * job of their own) */
-        return;
-    }
-    if (p == P_WEAVE) {                          /* ARP's Weave: black keys the track woven in (again: none), white its pattern */
-        ui.kmode[k] = KM_IDLE;
-        if (b >= 0 && b < NSEQT)
-            weave_set(trk, wv_from(trk) == b + 1 ? 0 : b + 1, -1, -1);
-        else if (w >= 0 && w < NPATT)
-            weave_set(trk, wv_from(trk) ? -1 : trk + 1, w, -1);
-        else
-            return;
-        if (wv_from(trk)) {
-            char t[24];
-            num_s((uint32_t)wv_pat(trk) + 1u, s_cat(s_cat(t, TRACK_NAME[wv_from(trk) - 1]), " P"));
-            say("WEAVES WITH", t);
-        } else
-            say("NO WEAVE", TRACK_NAME[trk]);
         return;
     }
     if (p == P_THROWS) {                         /* the throws' page: the keys fire them (punch_key) */
@@ -1719,23 +1666,6 @@ static void key_up(int k)
         int w = ordinal(WHITE_K, 16, k);
         if (w < 0)
             break;
-        if (sel_trk() == AUX_WEAVE) {            /* WEAVE's step let go: a tap adds or clears */
-            wvpat_t *wp = &pats.weave[pats.scene[cur_scene()].weave % NPATT];
-            int s = ui.bar * 16 + w;
-            if (s == ui.wv_step && !ui.held_used && plat_ms() - ui.key_t[k] < STEP_TAP_MS) {
-                wv_step_t *st = &wp->st[s];
-                uint32_t m;
-                undo_arr();
-                m = wv_mask(st) ? 0u : (ui.wv_last ? ui.wv_last : 1u);
-                st->m1 = (uint8_t)(m >> 8);
-                st->m0 = (uint8_t)m;
-                st->len = m ? 4 : 0;
-                mark_dirty();
-            }
-            if (s == ui.wv_step)
-                ui.wv_step = 0xFF;
-            break;
-        }
         if (ui.len_key && (ui.held >> (ui.len_key - 1) & 1u) && (w == ui.len_key - 1 || w == ui.held_first)) {
             if (!ui.held_used)                   /* a later step let go (or the first) with nothing edited: the
                                                   * first's length to it; else both were edited, as a pair */
@@ -1757,9 +1687,6 @@ static void key_up(int k)
         ui.touched = -1;
         break;
     }
-    case KM_WEAVE:
-        weave_key(k, 0);
-        break;
     case KM_PUNCH:
         punch_key(k, 0);
         if (ui.rec_armed && !playing() && trk == AUX_PUNCH && !home_held())
@@ -1826,9 +1753,9 @@ static void page_button(int b)
 {
     if (b != B_GLO && is_fx(sel_trk()))          /* (FX I and FX II are Mix's strips: elsewhere the instrument again) */
         track_select(ui.last_inst);
-    if (is_aux(sel_trk()) && (b == B_ENV || b == B_LFO || (b == B_ARP && sel_trk() == AUX_WEAVE)))
-        track_select(ui.last_inst);              /* (the conductor, the throws, WEAVE have no such page: the track
-                                                  * played last, as Mix's FX strips do; each track's weave is its ARP's) */
+    if (is_aux(sel_trk()) && (b == B_ENV || b == B_LFO || b == B_ARP))
+        track_select(ui.last_inst);              /* (the conductor, the throws have no such page: the track
+                                                  * played last, as Mix's FX strips do) */
     if ((b == B_ENV || b == B_LFO) && is_midi(sel_trk()))
         say_no(b == B_ENV ? "NO ENVELOPE" : "NO LFO", "on a MIDI track");
     for (uint32_t i = 0; i < NPAGE_BTN; i++)
@@ -1926,9 +1853,8 @@ static void button_up(int b)
             say("SCENES", ui.scene_pg ? "17 to 32" : "1 to 16");
             break;
         }
-        if ((steps_page(ui.page) && !(ui.btn >> B_SEQ & 1u)) || (ui.page == P_WEAVE && wv_from(sel_trk()))) {
-            ui.bar = (uint8_t)clampi(ui.bar + d, 0, NBAR - 1);   /* (SEQ held: the keyboard's octave, below; Weave:
-                                                                  * the bar its rows show) */
+        if (steps_page(ui.page) && !(ui.btn >> B_SEQ & 1u)) {
+            ui.bar = (uint8_t)clampi(ui.bar + d, 0, NBAR - 1);   /* (SEQ held: the keyboard's octave, below) */
             num_s((uint32_t)ui.bar + 1u, t);
             say("BAR", t);
             break;
@@ -2085,22 +2011,6 @@ static void steps_knob(int k, int32_t e)
 {
     int trk = sel_trk();
     tpat_t *tp = tpat(trk);
-    if (trk == AUX_WEAVE) {                      /* WEAVE: KNOB 1 the scene's pattern, KNOB 2 its length (held: the step's) */
-        scene_t *sc = &pats.scene[cur_scene()];
-        wvpat_t *wp = &pats.weave[sc->weave % NPATT];
-        int d = e > 0 ? 1 : -1;
-        undo_arr();
-        if (k == 0) {
-            sc->weave = (uint8_t)clampi(sc->weave % NPATT + d, 0, NPATT - 1);
-            seq.wv_ppat = sc->weave;
-        } else if (k == 1 && ui.wv_step < NSTEP && wv_mask(&wp->st[ui.wv_step])) {
-            wp->st[ui.wv_step].len = (uint8_t)clampi(wp->st[ui.wv_step].len + d, 1, wp->len);
-            ui.held_used = 1;
-        } else if (k == 1)
-            wp->len = (uint8_t)clampi(wp->len + d * 16, 16, NSTEP);
-        mark_dirty();
-        return;
-    }
     if (!is_seqt(trk))
         return;
     if (k == 0) {
@@ -2200,7 +2110,7 @@ static void aux_knob(int trk, int k, int32_t e)
         return;
     if (trk == AUX_BRAIN)
         hi = p == TP_E2 ? 11 : p == TP_E3 ? NBS - 1 : 8;   /* key, scale; link and FOLLOW: off, T1-T8 */
-    else if (trk == AUX_PUNCH || trk == AUX_WEAVE)
+    else if (trk == AUX_PUNCH)
         hi = 1;
     set_tp(trk, p, clampi(par[p] + e, 0, hi));
 }
@@ -2266,15 +2176,6 @@ static void knob_do(int k, int32_t e)
     case P_THROWS:
         if (k == 0)
             set_tp(AUX_PUNCH, TP_E1, clampi(proj.trk[AUX_PUNCH].par[TP_E1] + (e > 0 ? 1 : -1), 0, 1));
-        return;
-    case P_WEAVE:
-        weave_set(trk, k == 0 ? clampi(wv_from(trk) + (e > 0 ? 1 : -1), 0, NSEQT) : -1,
-                  k == 1 ? clampi(wv_pat(trk) + (e > 0 ? 1 : -1), 0, NPATT - 1) : -1,
-                  k == 2 ? clampi(wv_rule(trk) + (e > 0 ? 1 : -1), 0, NWV - 1) : -1);
-        if (k == 3 && wv_from(trk)) {            /* PLAYS: always, or only on the WEAVE track */
-            proj.trk[trk].rsv[3] = e > 0 ? 1 : 0;
-            weave_set(trk, -1, -1, -1);          /* (applied, marked unsaved) */
-        }
         return;
     case P_ARRANGE: arrange_knob(k, e); return;
     case P_SONG: song_knob(k, e); return;
@@ -2390,7 +2291,7 @@ static void presets(int32_t e)
             say("FILTER", tp_info_par(q, par)->names[par[q] % n]);
         }
         break;
-    case P_THROWS: case P_WEAVE:
+    case P_THROWS:
         break;
     default:
         if (is_fx(trk))
@@ -2528,7 +2429,7 @@ static void list_change_do(int32_t e)
     }
     case LK_PICK:
         switch (lst.row[lst.sel].id) {
-        case A_ENGINE: ui.pick_engine = (uint8_t)clampi(ui.pick_engine + d, 0, NENGINE - 1); break;
+        case A_ENGINE: ui.pick_engine = (uint8_t)eg_step(ui.pick_engine, d); break;
         case A_CLEAR: ui.pick_clear = (uint8_t)clampi(ui.pick_clear % 3u + d, 0, 2); break;
         case A_ROTATE: case A_SHIFT: {           /* how far: never 0 (left / down past 1 goes to -1) */
             int8_t *v = lst.row[lst.sel].id == A_ROTATE ? &ui.pick_rot : &ui.pick_shift;
@@ -2832,72 +2733,6 @@ static void act_rotate(int d)
         }
     mark_dirty();
 }
-/* a track's weave into the sequencer (pages.c wv_*), and a change to it: -1 leaves a value as it is */
-static void weave_apply(int t)
-{
-    if (t < 0 || t >= NSEQT)
-        return;
-    seq.wv_pat[t] = (uint8_t)wv_pat(t);
-    seq.wv_rule[t] = (uint8_t)wv_rule(t);
-    seq.wv_from[t] = (uint8_t)wv_from(t);
-    if (wv_from(t) && !wv_cued(t))               /* PLAYS always: it weaves once set up */
-        seq.wv_always |= (uint16_t)(1u << t);
-    else
-        seq.wv_always &= (uint16_t)~(1u << t);
-}
-/* the WEAVE track's keys: a white key 1-10 weaves its track while held, or (latch) on with a tap, off with the next */
-static void weave_key(int k, int on)
-{
-    int w = ordinal(WHITE_K, 16, k);
-    uint16_t m;
-    if (w < 0 || w >= NSEQT)
-        return;
-    m = (uint16_t)(1u << w);
-    if (on)
-        ui.wv_last = m;                          /* (what a tapped WEAVE step takes) */
-    if (proj.trk[AUX_WEAVE].par[TP_E1]) {
-        if (on)
-            ui.wv_latched ^= m;
-    } else if (on)
-        ui.wv_held |= m;
-    else
-        ui.wv_held &= (uint16_t)~m;
-    seq.wv_live = (uint16_t)(ui.wv_held | ui.wv_latched);
-    if (on && !wv_from(w))
-        say_no(TRACK_NAME[w], "no weave set: its ARP, Weave");
-}
-static void weave_set(int t, int from, int pat, int rule)
-{
-    if (t < 0 || t >= NSEQT)
-        return;
-    if (from >= 0)
-        proj.trk[t].rsv[0] = (uint8_t)from;
-    if (pat >= 0)
-        proj.trk[t].rsv[1] = (uint8_t)pat;
-    if (rule >= 0)
-        proj.trk[t].rsv[2] = (uint8_t)rule;
-    weave_apply(t);
-    mark_dirty();
-}
-/* SEL on Weave: KEEP AS PATTERN, the weave written whole into the track's first empty pattern */
-static void act_keep_weave(void)
-{
-    static tpat_t out PLAT_POOL;
-    int trk = sel_trk(), f = wv_from(trk), to = pat_first_empty(trk);
-    char t[8];
-    if (!f)
-        return;
-    if (to < 0) {
-        say_no("NO EMPTY PATTERN", "clear one first");
-        return;
-    }
-    undo_pat(trk, to, UNDO_RUN_MS);
-    pattern_woven(&out, tpat(trk), wv_kind(trk), &pats.pat[f - 1][wv_pat(trk)], wv_kind(f - 1), wv_rule(trk));
-    pats.pat[trk][to] = out;
-    mark_dirty();
-    num_s((uint32_t)to + 1u, s_cat(t, "P"));
-    say("KEPT AS", t);
-}
 /* COPY TO EMPTY: the pattern shown, with its locks, motion and loop, into the track's first empty pattern, which the
  * scene then plays (at the next bar while playing, as KNOB 1's pick): a variation to edit, the original kept. The
  * undo puts the scene back on the original */
@@ -2988,7 +2823,7 @@ static void act_paste_key(void)
     mark_dirty();
     say("PASTED", DL_SOUND_NAME[sk]);
 }
-/* PASTE SCENE: the scene copied (its patterns, mutes, the conductor's key, the weave) onto the scene playing, heard at
+/* PASTE SCENE: the scene copied (its patterns, mutes, the conductor's key) onto the scene playing, heard at
  * the next bar while playing */
 static void act_paste_scene(void)
 {
@@ -3242,7 +3077,6 @@ static void act_clear_scene(void)
         if (to < 0) {
             memset(pats.scene[n].pat, 0, sizeof pats.scene[n].pat);   /* (the brain's key stays) */
             pats.scene[n].mute = 0;
-            pats.scene[n].weave = 0;
             to = n;
         } else
             pats.scene[n].used = 0;
@@ -3307,8 +3141,6 @@ static void after_load(void)
     bt_keep(bt.want);                            /* (Bluetooth stays as it is, whichever project) */
     project_apply();
     apply_brain();
-    for (int t = 0; t < NSEQT; t++)
-        weave_apply(t);
     engine_tempo(proj.tempo_x10);
     engine_groove(proj.groove);
     undo.valid = 0;
@@ -3543,14 +3375,6 @@ static void action_run(int a)
     int cur = ui.name_slot <= sg->len ? ui.name_slot : sg->len;
     switch (a) {
     case A_CLEAR_NOTES:
-        if (sel_trk() == AUX_WEAVE) {            /* WEAVE: the scene's weave pattern, empty */
-            wvpat_t *wp = &pats.weave[pats.scene[cur_scene()].weave % NPATT];
-            undo_arr();
-            memset(wp->st, 0, sizeof wp->st);
-            mark_dirty();
-            say("CLEARED", "weaves");
-            break;
-        }
         act_clear_notes();
         say("CLEARED", "notes");
         break;
@@ -3568,7 +3392,6 @@ static void action_run(int a)
     case A_PASTE_PAT: act_paste_pat(); break;
     case A_CLEAR_STEP_LOCKS: step_clear_locks_held(); break;
     case A_PASTE_BAR: case A_PASTE_STEP: case A_PASTE_LOCKS: act_paste(a == A_PASTE_LOCKS); break;
-    case A_WEAVE: act_keep_weave(); break;
     case A_ROT_FWD: act_rotate(1); say("ROTATED", "forward"); break;
     case A_CLEAR:
         action_run(ui.pick_clear % 3u == 0 ? A_CLEAR_NOTES : ui.pick_clear % 3u == 1 ? A_CLEAR_LOCKS : A_CLEAR_BOTH);
@@ -3647,8 +3470,6 @@ static void action_run(int a)
             preset_apply(sel_trk(), f);
             ui.preset_i = (uint16_t)f;
         }
-        if (ui.pick_engine == EG_SLICE)          /* its notes pick slices: the conductor's chords would move them */
-            set_tp(sel_trk(), TP_BRAIN, 0);
         say("ENGINE", EG_NAME[ui.pick_engine % NENGINE]);
         break;
     }
@@ -3947,7 +3768,7 @@ static void input(void)
         if (lst.open)
             list_change(e);
         else if (page_btn_held(B_EDIT) && !is_aux(sel_trk())) {   /* EDIT held: ALGORITHM picks the engine */
-            ui.pick_engine = (uint8_t)clampi(proj.trk[sel_trk()].par[TP_ENGINE] + (e > 0 ? 1 : -1), 0, NENGINE - 1);
+            ui.pick_engine = (uint8_t)eg_step(proj.trk[sel_trk()].par[TP_ENGINE], e > 0 ? 1 : -1);
             if (ui.pick_engine != proj.trk[sel_trk()].par[TP_ENGINE])
                 action_run(A_ENGINE);
         } else
@@ -4020,15 +3841,15 @@ static void leds(void)
                 (seq.step_tick & 3u) < 2u)
                 k |= 1u << WHITE_K[seq.cue % 16];        /* the scene cued blinks on the beat */
             for (i = 0; i < NSEQT; i++)              /* a track's black key: off muted, full the selected, mid the rest */
-                if (!(seq.mute >> i & 1u)) {
+                if (i != AUX_BRAIN && !(seq.mute >> i & 1u)) {
                     if ((int)i == trk)
                         k |= 1u << BLACK_K[i];
                     else
                         mid |= 1u << BLACK_K[i];
                 }
-        } else if (ui.page == P_MIX) {           /* Mix's black keys: T1-T8, then FX I and FX II (they have no mute) */
-            static const uint8_t MT[10] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2};
-            for (i = 0; i < 10; i++)
+        } else if (ui.page == P_MIX) {           /* Mix's black keys: T1-T5, then FX I and FX II (they have no mute) */
+            static const uint8_t MT[7] = {0, 1, 2, 3, 4, AUX_FX1, AUX_FX2};
+            for (i = 0; i < 7; i++)
                 if (MT[i] >= NSEQT || !(seq.mute >> MT[i] & 1u)) {
                     if (MT[i] == trk)
                         k |= 1u << BLACK_K[i];
@@ -4038,10 +3859,6 @@ static void leds(void)
             k |= ui.keys;                         /* (white keys: play, same as every other page) */
         } else
             k |= ui.keys;
-        if (sel_trk() == AUX_WEAVE && !steps_page(ui.page))   /* the tracks weaving: their keys */
-            for (i = 0; i < NSEQT; i++)
-                if ((seq.wv_live | seq.wv_rec) >> i & 1u)
-                    k |= 1u << WHITE_K[i];
         if (ui.page == P_THROWS || sel_trk() == AUX_PUNCH) {   /* the throws in effect */
             for (i = 0; i < 24; i++) {
                 int fx = punch_of_key((int)i);
@@ -4693,10 +4510,7 @@ void ui_init(void)
     ui.page = P_STEPS;
     ui.rem[0] = 60;
     ui.nrem = 1;
-    ui.wv_step = 0xFF;
     ui.act_t = plat_ms();
-    for (int t = 0; t < NSEQT; t++)
-        weave_apply(t);
     ui.scene_seen = 0xFF;
     ui.scene_from = 0xFF;
     ui.last_inst = (uint8_t)(is_aux(sel_trk()) ? 0 : sel_trk());
@@ -4760,10 +4574,6 @@ void ui_frame(void)
     seq.rec_target = (uint8_t)(sel_trk() == AUX_BRAIN ? AUX_BRAIN : inst_trk());   /* where live recording writes */
     seq.rec_replace = (uint8_t)(proj.rsv[2] & 1u);
     ink_follow();
-    if (ui.wv_latched && !proj.trk[AUX_WEAVE].par[TP_E1]) {   /* latch off: the latched weaves end */
-        ui.wv_latched = 0;
-        seq.wv_live = ui.wv_held;
-    }
     autosave();
     draw_header();
     draw_page();

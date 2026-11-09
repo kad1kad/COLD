@@ -13,7 +13,7 @@ for k in range(NUSER):
     par = bytes([0] + [64] * (NTP_SOUND - 1)) if k == 0 else bytes(NTP_SOUND)
     presets += name.ljust(NAME_LEN, b"\0") + bytes([0]) + par
 obj1 = struct.pack("<I", 7) + bytes(presets)
-head = struct.pack("<IHBB", 0x42384D4C, 1, len(OBJS), 0) + struct.pack("<I", 0)
+head = struct.pack("<IHBB", 0x42444C43, 1, len(OBJS), 0) + struct.pack("<I", 0)
 img = bytearray(head + struct.pack("<I", zlib.crc32(head)))
 for o in OBJS:
     data = obj1 if o == 1 else b""

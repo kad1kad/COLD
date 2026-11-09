@@ -76,7 +76,9 @@ void engine_scene(int scene, int when);                  /* a scene: now (seq_se
 
 /* MIDI's fixed channels (from 0): tracks 1-8 on 0-7, FX I and FX II on 8 and 9, the master and the scenes on 10;
  * 11-15 the track playing (eng_midi_trk, the main loop's inst_trk()) */
-enum { CH_FX1 = NTRK, CH_FX2, CH_MASTER };
+/* MIDI channels (0-based): 1-5 the tracks (6-8 unused since NTRK went to 5), 9 and 10 FX I and II, 11 the master, 12-16 the
+ * instrument track playing. Fixed, not NTRK + n: a controller's map keeps working */
+enum { CH_FX1 = 8, CH_FX2, CH_MASTER };
 extern volatile uint8_t eng_midi_trk;                    /* channels 12-16's track: set once a frame (ui_frame,
                                                           * before cc_in_drain) from inst_trk() */
 
@@ -94,7 +96,6 @@ extern volatile uint8_t eng_ghost[NTRK];                 /* a muted track's step
 extern volatile uint8_t eng_voices, eng_voices_max;      /* sounding, and the guard's cap */
 extern volatile uint16_t eng_quiet;                      /* blocks in a row the output stayed under -60 dB (to 65535) */
 extern volatile uint32_t eng_guard_count;
-extern volatile uint32_t eng_acid_lite_count;      /* the 303s switched to lite (engine.c ACID_LITE_ON) */
 extern volatile uint16_t eng_heals;                      /* NaNs caught in the mix: the states cleared */
 extern volatile uint32_t eng_punch_drum, eng_punch_mel;  /* the FX in effect */
 extern volatile float eng_pump_db;                       /* the master's pump: its duck now, dB (the Master out page) */
@@ -103,4 +104,3 @@ extern volatile uint8_t eng_scene_now, eng_scene_cue;
 extern int16_t eng_scope[SCOPE_N];                       /* the last output samples, for the screen */
 extern volatile uint32_t eng_scope_w;
 int engine_core2_state(void);
-int engine_slice_now(int trk, int *slice, int32_t *pos);  /* the slice engine's slice playing on a track (the picture) */                            /* 0 one core (never had), 1 two, 2 lost, 3 barred */

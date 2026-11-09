@@ -32,10 +32,10 @@ spin K2 4
 expect par1.d4.send2 4
 wait 60
 shot kit_edit_sends.png
-# from the WEAVE track, ARP goes back to the last track picked (as Mix's FX strips: ALGO passed T8 on the way)
+# from the THROW track, ARP goes back to the last track picked (as Mix's FX strips: ALGO passed T8 on the way)
 turn ALGO 1
 expect trk 2
-turn ALGO 9
-expect trk 13
+turn ALGO 4
+expect trk 7
 tap ARP
-expect trk 8
+expect trk 5

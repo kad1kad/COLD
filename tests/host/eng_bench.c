@@ -34,10 +34,10 @@ static void full(int k, double *ins, double *ns)
     int t, b;
     uint64_t i0, n0, ti = 0, tn = 0;
     for (t = 0; t < NTRK; t++)
-        sound_default(par[t], EG_KNIT);
+        sound_default(par[t], EG_RAYON);
     memcpy(par[0], PRESETS[k].par, NTP_SOUND);
     par[0][TP_VMODE] = VM_POLY;                  /* (a chord of four even for the mono presets) */
-    if (getenv("BENCH_MONO") && PRESETS[k].par[TP_ENGINE] == EG_KNIT)
+    if (getenv("BENCH_MONO") && PRESETS[k].par[TP_ENGINE] == EG_RAYON)
         par[0][TP_E4] = 0;                       /* (BENCH_MONO: width 0, the voice path mono) */
     synth_init(S, par);
     synth_tempo(S, 120.0f);
@@ -91,7 +91,7 @@ static void alone(double *ins, double *ns)
 
 int main(int argc, char **argv)
 {
-    static const int DEF[] = {EG_KNIT, EG_RAYON, EG_JACQUARD};
+    static const int DEF[] = {EG_RAYON, EG_JACQUARD};
     int engines[NENGINE], ne = 0, a, k;
     for (a = 1; a < argc; a++)
         for (k = 0; k < NENGINE; k++)

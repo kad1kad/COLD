@@ -163,8 +163,8 @@ void app_splash(void)
     lcd_fill(0, 0, 240, 240, t->bg);
     cv_begin(240, 96, t->bg);
     {
-        int32_t w = text_w(&FONT_L, "LOOM-8");
-        cv_text((240 - w) / 2, 0, &FONT_L, "LOOM-8", t->text);
+        int32_t w = text_w(&FONT_L, "COLD");
+        cv_text((240 - w) / 2, 0, &FONT_L, "COLD", t->text);
         for (int i = 0; i < 8; i++)                  /* the warp: eight threads, each over and under the weft */
             for (int j = 0; j < 12; j++)
                 cv_rect(56 + i * 16, 44 + j * 3, 8, (i + j) & 1 ? 3 : 2, (i + j) & 1 ? t->ink[i] : t->panel2);

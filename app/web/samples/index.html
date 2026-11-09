@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: MPL-2.0
-     LOOM-8's samples page: the user sample bank on the FM-1 as a list, user 1, user 2 ... as the sample knob counts
+     COLD's samples page: the user sample bank on the FM-1 as a list, user 1, user 2 ... as the sample knob counts
      them after the factory samples (Chrome or Edge, Web MIDI). Connect reads the bank back (samples.c SMP_READ, 17):
      add, replace, rename, reorder and remove samples, set a sample's root note and its bars (a loop for the slice
      engine); Send builds the bank as tools/loom_samples.py does (loom_samples.js, inlined at LIB by
@@ -10,7 +10,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Samples · LOOM-8</title>
+<title>Samples · COLD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
@@ -71,9 +71,9 @@
 <body>
 <main>
   <h1>Samples</h1>
-  <p>Your own samples on the FM-1, up to 32 of them. On a track they come after LOOM-8's own: turn the sample
+  <p>Your own samples on the FM-1, up to 32 of them. On a track they come after COLD's own: turn the sample
     engine's sample knob (or a drum key's, on the sample model) past the factory ones to user 1, user 2 and so on.</p>
-  <p class="small">Connect the FM-1 by USB with LOOM-8 running, and use Chrome or Edge. WAV, AIFF, MP3 and FLAC files work.</p>
+  <p class="small">Connect the FM-1 by USB with COLD running, and use Chrome or Edge. WAV, AIFF, MP3 and FLAC files work.</p>
 
   <div class="bar">
     <button id="connect">Connect</button>
@@ -87,7 +87,7 @@
     <span class="small">or drop files here. Drop one on a sample to replace it.</span>
   </div>
   <div class="bar">
-    <button class="quiet" id="factory">Add LOOM-8's sounds</button>
+    <button class="quiet" id="factory">Add COLD's sounds</button>
     <span class="small" id="factorynote">the kits' drums, the instruments, the sweep and the vinyl (86 KB).</span>
   </div>
   <div class="bar">
@@ -115,7 +115,7 @@
   <input type="file" id="files" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.m4a,.ogg" aria-label="Samples to add" tabindex="-1">
 
   <h2 style="font: 700 1.3rem 'Barlow Semi Condensed', sans-serif; margin: 2rem 0 .5rem">The breaks</h2>
-  <p class="small">Since LOOM-8 0.7 its four breaks are no longer built into the firmware, to make room for new sounds.
+  <p class="small">Since COLD 0.7 its four breaks are no longer built into the firmware, to make room for new sounds.
     "Add the breaks" puts them in your bank, then "Send to the FM-1". The slice engine's presets and your projects find
     them there by name, whatever their place in the list. Without them, those presets are silent and the screen says
     "install the breaks". The breaks are free loops posted by u/FCTRYBEATS, with permission to use them in any project.</p>
@@ -128,7 +128,7 @@
     sound stops for a moment while it writes. Removing or moving a sample renumbers the ones after it, so a track
     that used one plays its new neighbour instead. The bank holds about 18 seconds at 22 kHz, 35 at 11 kHz.</p>
   <p class="small">Also from the command line: <code>tools/loom_samples.py</code>, in
-    <a href="https://github.com/charlesvestal/fm1-loom">the source</a>. LOOM-8 is MPL-2.0, built on fm1-base and
+    <a href="https://github.com/charlesvestal/fm1-loom">the source</a>. COLD is MPL-2.0, built on fm1-base and
     felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments). <a href="../manual/#samples">The manual's Samples section</a>.</p>
 </main>
 <script type="module">
@@ -241,7 +241,7 @@ function render(focus = null) {
   $("fill").style.width = ok ? `${Math.min(100, plan.used / BANK_MAX_DATA * 100)}%` : "100%";
   $("room").className = ok ? "" : "bad";
   $("room").textContent = !readOk ? "" : !ok ? `Too much for the FM-1: ${plan.err.replace(/^too long: /, "")}. Remove a sample, shorten one, ` +
-      (fset.length ? "pick a lower quality, or leave out LOOM-8's sounds (86 KB) below." : "or pick a lower quality.")
+      (fset.length ? "pick a lower quality, or leave out COLD's sounds (86 KB) below." : "or pick a lower quality.")
     : `${items.length} sample${items.length === 1 ? "" : "s"}, ${KB(plan.used)} of ${KB(BANK_MAX_DATA)}` +
       (plan.chose && items.some((it) => !it.adpcm && !it.rate) ? `; new samples at ${(plan.chose / 1000).toFixed(plan.chose % 1000 ? 1 : 0)} kHz.` : ".");
   const ch = readOk && changed();
@@ -250,12 +250,12 @@ function render(focus = null) {
   $("discard").disabled = busy;
   $("add").disabled = busy || !readOk || items.length >= BANK_N;
   const fmiss = factory ? factoryMissing(fset, factory).length : (fset.length < NFENT ? NFENT - fset.length : 0);
-  // one button: Add while any of LOOM-8's sounds is missing, else Leave out (their room for your own samples)
-  $("factory").textContent = readOk && !fmiss ? "Leave out LOOM-8's sounds" : "Add LOOM-8's sounds";
+  // one button: Add while any of COLD's sounds is missing, else Leave out (their room for your own samples)
+  $("factory").textContent = readOk && !fmiss ? "Leave out COLD's sounds" : "Add COLD's sounds";
   $("factory").disabled = busy || !readOk;
-  $("factorynote").textContent = roomNote || (readOk && !fmiss ? "LOOM-8's sounds are in the bank (86 KB). Leave them " +
+  $("factorynote").textContent = roomNote || (readOk && !fmiss ? "COLD's sounds are in the bank (86 KB). Leave them " +
     "out for more room of your own: the kits and presets that use them go silent." :
-    readOk ? `${fmiss === NFENT ? "LOOM-8's sounds are" : `${fmiss} of LOOM-8's sounds are`} not in the bank: the kits ` +
+    readOk ? `${fmiss === NFENT ? "COLD's sounds are" : `${fmiss} of COLD's sounds are`} not in the bank: the kits ` +
     "and presets that use them are silent. Add them, then Send." :
     "the kits' drums, the instruments, the sweep and the vinyl (86 KB).");
   $("breaks").disabled = busy || !readOk || !breaksMissing().length;
@@ -329,13 +329,13 @@ async function addFiles(list, at = -1) {
 // (tools/make_pages.py copies app/samples/), stored as the factory bank kept them (tools/gen_samples.py RECORDINGS)
 const BREAKS = [["classic", 1], ["heat", 1], ["choke", 2], ["ecstasy", 1]];
 function breaksMissing() { return BREAKS.filter(([nm]) => !items.some((it) => it.name === nm)); }
-// ---- LOOM-8's own sounds: in the firmware until 0.8, now in the bank (factory.bin beside this page: tools/gen_samples.py
+// ---- COLD's own sounds: in the firmware until 0.8, now in the bank (factory.bin beside this page: tools/gen_samples.py
 // --factory-bank), marked as the factory set's: not user slots, after them. If they do not fit, the user's samples
 // above a rate are put at it (makeRoom), said here before anything is sent
 async function getFactory() {
   if (factory) return factory;
   const r = await fetch("factory.bin");
-  if (!r.ok) throw new Error(`Couldn't fetch LOOM-8's sounds (HTTP ${r.status}). Check the connection and try again.`);
+  if (!r.ok) throw new Error(`Couldn't fetch COLD's sounds (HTTP ${r.status}). Check the connection and try again.`);
   factory = factoryOf(new Uint8Array(await r.arrayBuffer()));
   return factory;
 }
@@ -343,28 +343,28 @@ async function addFactory() {
   if (busy || !readOk) return;
   let f;
   try { f = await getFactory(); } catch (e) { fail(e.message); return; }
-  if (!factoryMissing(fset, f).length) { say("LOOM-8's sounds are already in the bank."); return; }
+  if (!factoryMissing(fset, f).length) { say("COLD's sounds are already in the bank."); return; }
   const kept = items.filter((it) => it.adpcm), fresh = items.filter((it) => !it.adpcm);
-  if (fresh.length) { fail("Send or discard the new samples first, then add LOOM-8's sounds."); return; }
+  if (fresh.length) { fail("Send or discard the new samples first, then add COLD's sounds."); return; }
   const r = makeRoom([...kept, ...fset], f);
-  if (!r) { fail("Your samples take too much room for LOOM-8's sounds, even at 11 kHz. Remove some first."); return; }
+  if (!r) { fail("Your samples take too much room for COLD's sounds, even at 11 kHz. Remove some first."); return; }
   items = r.items.filter((it) => !isFactory(it));
   fset = r.items.filter(isFactory);
   roomNote = r.cap ? `To make room, ${r.changed.join(", ")} ${r.changed.length > 1 ? "are" : "is"} now at ` +
     `${r.cap / 1000 | 0} kHz (what is above ${r.cap / 2000 | 0} kHz goes). Send to apply, or Discard to keep them as they were.` : "";
-  say(r.cap ? "LOOM-8's sounds added, your samples made smaller to fit: send them to the FM-1." :
-    "LOOM-8's sounds added: send them to the FM-1.");
+  say(r.cap ? "COLD's sounds added, your samples made smaller to fit: send them to the FM-1." :
+    "COLD's sounds added: send them to the FM-1.");
   render();
 }
 
-// LOOM-8's sounds out of the bank: their 86 KB for the user's samples (the command line's --no-factory); the kits'
+// COLD's sounds out of the bank: their 86 KB for the user's samples (the command line's --no-factory); the kits'
 // sample keys, Twill's and Denim's hats among them, and the sample presets go silent until they are added again
 function leaveOutFactory() {
   if (busy || !readOk || !fset.length) return;
   fset = [];
-  roomNote = "LOOM-8's sounds left out: the kits' sample drums and the sample presets that use them are silent " +
+  roomNote = "COLD's sounds left out: the kits' sample drums and the sample presets that use them are silent " +
     "until you add them again. Send to apply, or Discard to keep them.";
-  say("LOOM-8's sounds left out: send to the FM-1 to make the room.");
+  say("COLD's sounds left out: send to the FM-1 to make the room.");
   render();
 }
 async function factoryButton() {
@@ -395,7 +395,7 @@ async function addBreaks() {
 async function connect() {
   if (!navigator.requestMIDIAccess) throw new Error("This browser can't talk to MIDI devices. Use Chrome or Edge.");
   const l = await findLink(await navigator.requestMIDIAccess({ sysex: true }));
-  if (!l) throw new Error("No FM-1 running LOOM-8 found. Connect it by USB, and close other apps that use its MIDI port.");
+  if (!l) throw new Error("No FM-1 running COLD found. Connect it by USB, and close other apps that use its MIDI port.");
   return l;
 }
 async function readAll() {
@@ -447,7 +447,7 @@ $("send").onclick = () => run(async () => {
   say("Reading back…");
   await readAll();
   say(`Done: ${items.length} sample${items.length === 1 ? "" : "s"} on the FM-1` +
-      (items.length ? `, user 1 to user ${items.length}` : "") + (fset.length ? `, and LOOM-8's sounds.` : "."));
+      (items.length ? `, user 1 to user ${items.length}` : "") + (fset.length ? `, and COLD's sounds.` : "."));
 });
 
 $("breaks").onclick = addBreaks;

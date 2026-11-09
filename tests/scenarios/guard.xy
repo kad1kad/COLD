@@ -1,10 +1,9 @@
 # the overload guard (engine.c engine_load), on synthetic loads ("load N": every block costs N % as the guard sees
-# it): knit's unison never thins (the knob's count plays, whatever the load); the voice guard takes the pool to eight
+# it): the voice guard takes the pool to eight
 # voices on sustained load and gives them back two a second
 wait 300
 load 40
-preset 3 dusty_pad knit
-param 3 e3 7
+preset 3 glass_pad rayon
 knob 3 vmode poly
 play 3 G3 on
 play 3 B3 on

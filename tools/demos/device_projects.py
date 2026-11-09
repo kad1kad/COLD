@@ -11,7 +11,7 @@ For each group: one user sample bank with the three songs' samples (OUT_DIR/bank
 135 KB: the 216 KB bank holds them), each song's sample slots moved to its place in it (song 2's u1 is u3 ...);
 then the host simulator runs each song's setup (tools/demos/<song>.xy up to "tap HOME", where its performance
 starts), saves it into slot 1..3 (named after the song), starts a new project for the next, and writes the backup
-(OUT_DIR/group_A.loom8, base/tools/fm1_backup.py's file). OUT_DIR/manifest.json lists, per song: its slot, the
+(OUT_DIR/group_A.cold, base/tools/fm1_backup.py's file). OUT_DIR/manifest.json lists, per song: its slot, the
 host's model of the project as the FM-1 will play it (the backup restored in the simulator, the slot loaded from
 HOME's list, its song from the Song page until it stops: project_model), render.sh's model with the performance
 (model, if build/demos/run_<song>/log.txt is there), and what the script does live while it plays (knob moves,
@@ -170,7 +170,7 @@ def main():
     B = Path(sys.argv[1])
     out = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "build" / "demos" / "device"
     out.mkdir(parents=True, exist_ok=True)
-    host = ROOT / "app" / "build" / "host" / "loom_host"
+    host = ROOT / "app" / "build" / "host" / "cold_host"
     if not host.exists():
         sys.exit("device_projects: build the host simulator first (./build.sh --host)")
     specs = {}
@@ -204,7 +204,7 @@ def main():
             script += [f"projsave {slot} {NAMES.get(s, s)}", "wait 200"]
             rows.append({"slot": slot, "song": s, "name": NAMES.get(s, s).replace("_", " "), "user_samples_from": at[root(s)] + 1,
                          "model": model(s), "live": live_actions(live)})
-        script.append(f"backup out:group_{g}.loom8")
+        script.append(f"backup out:group_{g}.cold")
         sp = out / f"group_{g}.xy"
         sp.write_text("\n".join(script) + "\n")
         r = subprocess.run([str(host), str(sp), str(out)], capture_output=True, text=True)
@@ -213,14 +213,14 @@ def main():
         for ln in log.splitlines():
             if ln.startswith(("projsave", "demo", "FAIL", "line ")):
                 print("  " + ln)
-        if r.returncode or not (out / f"group_{g}.loom8").exists():
+        if r.returncode or not (out / f"group_{g}.cold").exists():
             sys.exit(f"group {g}: the host run failed (rc {r.returncode}); see {out / f'group_{g}.log'}")
-        print(f"  backup {out / f'group_{g}.loom8'}, bank {bank}")
+        print(f"  backup {out / f'group_{g}.cold'}, bank {bank}")
         for row in rows:
-            row["project_model"] = project_model(host, out, g, row["slot"], bank, out / f"group_{g}.loom8")
+            row["project_model"] = project_model(host, out, g, row["slot"], bank, out / f"group_{g}.cold")
             pm = row["project_model"]
             print(f"  slot {row['slot']} {row['song']}: as a project, " + (pm["line"][7:] if pm else "no stats"))
-        manifest["groups"][g] = {"bank": str(bank), "backup": str(out / f"group_{g}.loom8"), "songs": rows}
+        manifest["groups"][g] = {"bank": str(bank), "backup": str(out / f"group_{g}.cold"), "songs": rows}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     print(f"manifest {out / 'manifest.json'}")
 

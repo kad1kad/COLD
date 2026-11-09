@@ -4,11 +4,11 @@ wait 300
 turn ALGO 1
 tap EDIT
 turn PRESET 1
-expect par2.0 0
+expect par2.0 2
 wait 60
 shot d02_next_preset.png
 turn PRESET 10
-expect par2.0 0
+expect par2.0 2
 tap ENV
 turn SELECT 1
 expect page Filter

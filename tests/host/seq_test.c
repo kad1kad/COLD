@@ -74,7 +74,7 @@ static void reset(void)
     patterns_init(&P);
     memset(par, 0, sizeof par);
     for (t = 0; t < NTRK; t++)
-        par[t][TP_ENGINE] = EG_KNIT;
+        par[t][TP_ENGINE] = EG_RAYON;
     seq_init(&S, &P, par);
     S.clock = SEQ_CLK_INTERNAL;
     nev = 0;
@@ -2138,82 +2138,6 @@ static void t_fills(void)
     printf("ok %s\n", cur);
 }
 
-/* a slice track is percussive for the throws: the drums' octave of keys, the drum fills on its own slices (the
- * downbeat's for the kick, the backbeat's for the snare, an off-beat's for the hat), its notes kept under the
- * octave throw (the engine raises its pitch); a sample track stays melodic */
-static void t_slice_throws(void)
-{
-    int i, k = 0, sn = 0, h = 0;
-    cur = "slice-throws";
-    reset();
-    par[0][TP_ENGINE] = EG_SLICE;
-    par[1][TP_ENGINE] = EG_SAMPLE;
-    for (i = 0; i < 8; i++)
-        note(0, 2 * i, 60 + i, 100);  /* a break's eight slices in eighths */
-    note(1, 0, 60, 100);
-    CHECK(punch_group_of(&S, 0) == 0 && punch_group_of(&S, 1) == 1);
-    seq_punch_key(&S, PX_OCTAVE, 1, -1);
-    seq_punch_key(&S, PX_MEL + PX_OCTAVE, 1, -1);
-    start();
-    run(10);
-    CHECK(on_n(0)->a == 60 && nth(E_ON, 1, 0)->a == 48);   /* the slice's note stays, the sample's goes down */
-    CHECK(seq_punch_mask(&S, 0) == (1u << PX_OCTAVE) && seq_punch_mask(&S, 1) == (1u << PX_OCTAVE));
-    seq_punch_key(&S, PX_OCTAVE, 0, -1);
-    run(10);
-    CHECK(seq_punch_mask(&S, 0) == 0);
-    seq_punch_key(&S, PX_MEL + PX_OCTAVE, 0, -1);
-    stop();
-    /* build: the snare's slice (the backbeat's, 62) in eighths, then sixteenths */
-    seq_punch_key(&S, PX_BUILD, 1, -1);
-    nev = 0;
-    start();
-    run(16 * L16);
-    CHECK(count(E_ON, 0) == 12 && count(E_ON, 1) == 1);
-    for (i = 0; i < 12; i++)
-        CHECK(on_n(i)->a == 62);
-    CHECK(near(off_of(on_n(0))->t - on_n(0)->t, L16 / 2, 1));
-    seq_punch_key(&S, PX_BUILD, 0, -1);
-    /* floor: the kick's slice (60) on the beats, the hat's (61) on the other sixteenths */
-    seq_punch_key(&S, PX_FLOOR, 1, -1);
-    nev = 0;
-    run(16 * L16);
-    for (i = 0; i < count(E_ON, 0); i++) {
-        k += on_n(i)->a == 60;
-        h += on_n(i)->a == 61;
-        sn += on_n(i)->a == 62;
-    }
-    CHECK(k == 4 && h == 12 && sn == 0 && count(E_ON, 0) == 16);
-    seq_punch_key(&S, PX_FLOOR, 0, -1);
-    /* jumble: the three slices */
-    seq_punch_key(&S, PX_JUMBLE, 1, -1);
-    nev = 0;
-    run(32 * L16);
-    CHECK(count(E_ON, 0) > 12 && count(E_ON, 0) < 32);
-    for (i = 0; i < count(E_ON, 0); i++)
-        CHECK(on_n(i)->a >= 60 && on_n(i)->a <= 62);
-    seq_punch_key(&S, PX_JUMBLE, 0, -1);
-    /* the melodic group's build leaves it alone; a live throw aimed at it (an upper key from its page) is its own */
-    seq_punch_key(&S, PX_MEL + PX_BUILD, 1, -1);
-    nev = 0;
-    run(16 * L16);
-    CHECK(count(E_ON, 0) == 8 && on_n(1)->a == 61);
-    seq_punch_key(&S, PX_MEL + PX_BUILD, 0, -1);
-    seq_punch_key(&S, PX_MEL + PX_BUILD, 1, 0);
-    nev = 0;
-    run(16 * L16);
-    CHECK(count(E_ON, 0) == 12 && on_n(0)->a == 62);
-    seq_punch_key(&S, PX_MEL + PX_BUILD, 0, 0);
-    /* an empty slice pattern's fills are silent */
-    stop();
-    reset();
-    par[0][TP_ENGINE] = EG_SLICE;
-    seq_punch_key(&S, PX_FLOOR, 1, -1);
-    start();
-    run(16 * L16);
-    CHECK(count(E_ON, 0) == 0);
-    printf("ok %s\n", cur);
-}
-
 /* drum offs: the gated and loop play modes end with the step's length, the key's release, or stop */
 static void t_drum_off(void)
 {
@@ -2325,32 +2249,6 @@ static void t_kit11(void)            /* a kit step holds all eleven sounds, and 
         stop();
         S.kmute[0] = 0;
     }
-    printf("ok %s\n", cur);
-}
-
-static void t_weave_live(void)        /* the sequencer weaves live: T1's P1 with T2's P1 by rhythm, and back */
-{
-    cur = "weave-live";
-    reset();
-    note(0, 0, 60, 100);                          /* T1: hits on 1 and 3 */
-    note(0, 2, 60, 100);
-    note(1, 1, 72, 100);                          /* T2 (the one woven in): 72 then 74 */
-    note(1, 5, 74, 100);
-    S.mute = 1u << 1;                             /* (T2 itself silent) */
-    S.wv_from[0] = 2;                             /* T1 weaves with T2's P1, by rhythm */
-    S.wv_pat[0] = 0;
-    S.wv_rule[0] = WV_RHYTHM;
-    S.wv_live = 1u;
-    start();
-    run(4 * L16);
-    CHECK(count(E_ON, 0) == 2 && on_n(0)->a == 72 && nth(E_ON, 0, 1)->a == 74);
-    stop();
-    S.wv_live = 0;                                /* let go: its own notes */
-    nev = 0;
-    start();
-    run(4 * L16);
-    CHECK(count(E_ON, 0) == 2 && on_n(0)->a == 60);
-    stop();
     printf("ok %s\n", cur);
 }
 
@@ -2919,8 +2817,8 @@ static void t_aux_tracks(void)
     run(3 * L16);
     CHECK(count(E_ON, 0) == 1);       /* step 2 muted by the sequenced FX */
     CHECK(nth(E_PUNCH, -1, 0) && nth(E_PUNCH, -1, 0)->b == 1);
-    /* ten sequenced tracks (1-8, the conductor, the throws), then the two FX tracks: no tape */
-    CHECK(NSEQT == 10 && AUX_PUNCH == NSEQT - 1 && AUX_FX1 == NSEQT && AUX_FX2 == NSEQT + 1 && AUX_WEAVE == NSEQT + 2 && NALLTRK == 13);
+    /* seven sequenced tracks (1-5, the conductor, the throws), then the two FX tracks: no tape */
+    CHECK(NSEQT == 7 && AUX_PUNCH == NSEQT - 1 && AUX_FX1 == NSEQT && AUX_FX2 == NSEQT + 1 && NALLTRK == 9);
     printf("ok %s\n", cur);
 }
 
@@ -2944,63 +2842,6 @@ static void t_pattern_helpers(void)
     cond_ab(COND_NAB - 1, &a, &b);
     CHECK(a == 8 && b == 8);
     CHECK(P.pat[AUX_BRAIN][0].scale == TS_4 && P.pat[0][0].len == 16 && P.scene[0].used);
-    printf("ok %s\n", cur);
-}
-
-static void t_weave(void)
-{
-    static tpat_t a, b, o;
-    cur = "weave";
-    pattern_init(&a);
-    pattern_init(&b);
-    a.len = 32;                                    /* a: notes 60 on steps 1, 5, 9 ... over two bars */
-    for (int i = 0; i < 32; i += 4)
-        a.st[i].note[0] = 60, a.st[i].vel = 90;
-    a.scale = TS_2;
-    b.len = 16;                                    /* b: 72, 74, 76 on steps 3, 4, 8 of one bar */
-    b.st[2].note[0] = 72, b.st[3].note[0] = 74, b.st[7].note[0] = 76;
-    b.st[2].vel = b.st[3].vel = b.st[7].vel = 50;
-    pattern_woven(&o, &a, WK_MEL, &b, WK_MEL, WV_BARS);   /* bar 1 a's, bar 2 b's */
-    CHECK(o.len == 32 && o.scale == TS_2);
-    CHECK(o.st[0].note[0] == 60 && o.st[4].note[0] == 60 && o.st[2].note[0] == 0);
-    CHECK(o.st[16].note[0] == 0 && o.st[18].note[0] == 72 && o.st[23].note[0] == 76 && o.st[20].note[0] == 0);
-    pattern_woven(&o, &b, WK_MEL, &a, WK_MEL, WV_BARS);   /* b (one bar) twice as long: bar 1 b's, bar 2 a's */
-    CHECK(o.len == 32 && o.st[2].note[0] == 72 && o.st[16].note[0] == 60 && o.st[18].note[0] == 0);
-    pattern_woven(&o, &a, WK_MEL, &b, WK_MEL, WV_STEPS);  /* odd steps a's, even b's */
-    CHECK(o.st[0].note[0] == 60 && o.st[2].note[0] == 0 && o.st[3].note[0] == 74 && o.st[7].note[0] == 76);
-    CHECK(o.st[19].note[0] == 74);                 /* b looped: step 20 is b's step 4 */
-    pattern_woven(&o, &a, WK_MEL, &b, WK_MEL, WV_RHYTHM); /* a's hits, b's notes in turn, a's velocity */
-    CHECK(o.len == 32 && o.st[0].note[0] == 72 && o.st[4].note[0] == 74 && o.st[8].note[0] == 76);
-    CHECK(o.st[12].note[0] == 72 && o.st[0].vel == 90 && o.st[1].note[0] == 0);
-    pattern_woven(&o, &a, WK_MEL, &b, WK_MEL, WV_NOTES);  /* b's hits (looped to 32), a's notes; a's settings */
-    CHECK(o.len == 32 && o.scale == TS_2 && o.st[2].note[0] == 60 && o.st[3].note[0] == 60);
-    CHECK(o.st[2].vel == 50 && o.st[0].note[0] == 0 && o.st[18].note[0] == 60);
-    {   /* live: the weave carries on across passes: a one-bar a by bars plays b on its second pass */
-        step_t w;
-        weave_step(&b, WK_MEL, &a, WK_MEL, WV_BARS, 16 + 2, &w);
-        CHECK(w.note[0] == 0);
-        weave_step(&b, WK_MEL, &a, WK_MEL, WV_BARS, 2, &w);
-        CHECK(w.note[0] == 72);
-        weave_step(&b, WK_MEL, &a, WK_MEL, WV_RHYTHM, 16 + 2, &w);   /* b's 4th hit (pass 2's first) a's 4th note */
-        CHECK(w.note[0] == 60);
-    }
-    {   /* across kinds: a kit's sounds on a melodic rhythm as the pentatonic ladder; notes onto a kit as sounds */
-        static tpat_t k;
-        step_t w;
-        pattern_init(&k);
-        kit_add(&k.st[0], 1);
-        kit_add(&k.st[4], 3);
-        k.st[0].vel = k.st[4].vel = 100;
-        weave_step(&a, WK_MEL, &k, WK_KIT, WV_RHYTHM, 4, &w);   /* a's 2nd hit: the kit's 2nd (sound 3): F3 */
-        CHECK(w.note[0] == 53 && w.vel == 90);
-        weave_step(&k, WK_KIT, &a, WK_MEL, WV_RHYTHM, 0, &w);   /* the kit's 1st hit: a's 1st note (60) as a sound */
-        CHECK(kit_mask(&w) == 1u << (60 % NDRUM) && w.note[2] == 0);
-        weave_step(&a, WK_MEL, &k, WK_FX, WV_STEPS, 1, &w);     /* a throw's step onto notes: nothing taken */
-        CHECK(step_empty(&w));
-    }
-    pattern_init(&b);                              /* no notes to take: the rhythm stays as it was */
-    pattern_woven(&o, &a, WK_MEL, &b, WK_MEL, WV_RHYTHM);
-    CHECK(o.st[0].note[0] == 60 && o.st[4].note[0] == 60);
     printf("ok %s\n", cur);
 }
 
@@ -3349,7 +3190,6 @@ int main(void)
     t_cue_bar();
     t_flam();
     t_cue_scene();
-    t_weave();
     t_timing();
     t_scale();
     t_groove();
@@ -3381,7 +3221,6 @@ int main(void)
     t_hit_pulse();
     t_hit_velocity();
     t_hit_rec();
-    t_weave_live();
     t_scene();
     t_ghost();
     t_song();
@@ -3399,7 +3238,6 @@ int main(void)
     t_echo();
     t_loop_release();
     t_fills();
-    t_slice_throws();
     t_pitch_short_long();
     t_drum_off();
     t_punch_seq();

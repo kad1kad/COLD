@@ -172,8 +172,6 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint32_t sub_to_next;             /* ratchets: samples to the next hit, Q8 (NEVER none) */
     uint32_t age;                     /* samples since the step fired, Q8 (live record quantise) */
     int32_t off_q8;                   /* the current step's timing offset (groove, nudge), Q8 */
-    step_t wv_st;                     /* the woven step playing (weave_step), while the track weaves */
-    uint8_t wv_on;                    /* 1: the step playing is wv_st (its ratchets repeat it) */
 } seq_trk_t;
 
 /* a kit sound's tricks as it plays (seq.c kit_step): each sound of a kit its own ratchets or flam, its pulse or hold, its
@@ -301,15 +299,6 @@ typedef struct {
     volatile uint8_t rec_target;      /* the track the keys record into (the UI's) */
     uint32_t rec_written[NSEQT][2];   /* steps written since the playhead last passed them */
     uint32_t rec_age[8];
-    /* the weave (pattern.h weave_step): a track weaving plays its pattern crossed with wv_from's pattern wv_pat by
-     * wv_rule; it weaves while its bit is in wv_live (the WEAVE page's keys, held or latched) or wv_rec (the WEAVE
-     * track's steps playing). wv_from 0 = no weave set up, else the track + 1. Set by the UI, read here */
-    volatile uint8_t wv_from[NSEQT], wv_pat[NSEQT], wv_rule[NSEQT];
-    volatile uint16_t wv_live, wv_rec;
-    volatile uint16_t wv_always;      /* the tracks whose weave plays always (PLAYS always: set up = on) */
-    uint8_t wv_ppat;                  /* the WEAVE track's pattern playing (the scene's) */
-    uint8_t wv_left[NSEQT];           /* sixteenths each track's recorded weave still lasts */
-    uint8_t wv_rec_at[NSEQT];         /* recording: the step a held weave started on (0xFF none) */
     /* the look-ahead (engine.c): the sequencer run a block ahead of the sound, its calls queued and played at their
      * frames. ahead: how far ahead it is now (samples Q8, 0 when live); live_lead: the same while seq_keys_live plays
      * the keys, which happen at the sound's time: what they set counting from now counts from that much earlier */

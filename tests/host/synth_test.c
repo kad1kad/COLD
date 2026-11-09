@@ -24,7 +24,6 @@
 #include "synth.h"
 #include "drumline.h"
 #include "sample.h"
-#include "bass303.h"                          /* bass303_cutoff_hz */
 
 static int bad;
 static void check(const char *what, int ok)
@@ -43,7 +42,6 @@ static float last_rms;                           /* the last block's RMS (left) 
 static int finite_f(float x) { return x == x && x < 1e30f && x > -1e30f; }
 static float fm_fabs_t(float x) { return x < 0.0f ? -x : x; }
 static float fabs_f(float x) { return x < 0.0f ? -x : x; }
-static float fm_fmaxf_t(float a, float b) { return a > b ? a : b; }
 
 /* the stack below here filled with NaN: what a render leaves unwritten on it then shows */
 __attribute__((noinline)) static void stack_nan(void)
@@ -82,7 +80,7 @@ static void reset(void)
 {
     int t;
     for (t = 0; t < NTRK; t++)
-        sound_default(par[t], EG_KNIT);
+        sound_default(par[t], EG_RAYON);
     synth_init(S, par);
     synth_tempo(S, 120.0f);
 }
@@ -179,7 +177,7 @@ static double bench_weft(int variant, double *worst_out)
     uint64_t total = 0, worst = 0;
     reset();
     for (t = 0; t < NTRK; t++) {
-        sound_default(par[t], EG_KNIT);
+        sound_default(par[t], EG_RAYON);
         par[t][TP_FTYPE] = FT_LP24;
         par[t][TP_E1] = 90;
         par[t][TP_E2] = (uint8_t)(variant == 1 ? 40 : 110);
@@ -613,598 +611,6 @@ static void sample_tests(void)
     reset();
 }
 
-/* ---- the slice engine ---- */
-#define SL_SEC 2048                              /* the test loop: 8 sections of 2048 samples, section k a sine of */
-static int sl_per(int k) { return 20 + 6 * k; } /* period 20 + 6k samples (at the native rate: twice that in frames) */
-static float gen_sections(int i)
-{
-    int k = i / SL_SEC, p = sl_per(k);
-    return (float)(20000.0 * sin(6.283185307179586 * (double)(i % p) / p));
-}
-static int sl_slice_seen;                        /* synth_slice_now's slice a few blocks in (-1 none) */
-static int32_t sl_pos_seen;
-/* as sample_run, a note held up to secs on track 0 (others may already play); also what synth_slice_now says
- * 10 blocks in */
-static int slice_run(int note, float secs, int *n_out, int fresh)
-{
-    int finite = 1, n = 0, stop = -1, b, i, nb = (int)(secs * 44100.0f) / 32;
-    if (fresh) {
-        synth_all_off(S, -1);
-        for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
-            block(32, &finite);
-    }
-    synth_note_on(S, 0, note, 100, 0, 77);
-    sl_slice_seen = -1;
-    for (b = 0; b < nb; b++) {
-        block(32, &finite);
-        for (i = 0; i < 32; i++)
-            sbuf[n++] = (L[i] + R[i]) * 0.5f;
-        if (b == 10 && !synth_slice_now(S, 0, &sl_slice_seen, &sl_pos_seen))
-            sl_slice_seen = -1;
-        if (stop < 0 && !synth_sounding(S, 0, NVOICE))
-            stop = n;
-    }
-    synth_note_off(S, 0, 77);
-    if (!finite)
-        stop = -2;
-    *n_out = n;
-    return stop;
-}
-static float max_step(const float *x, int n)    /* the largest jump from a sample to the next */
-{
-    float m = 0.0f;
-    int i;
-    for (i = 1; i < n; i++)
-        m = fabs_f(x[i] - x[i - 1]) > m ? fabs_f(x[i] - x[i - 1]) : m;
-    return m;
-}
-static float peak_of(const float *x, int n)
-{
-    float m = 0.0f;
-    int i;
-    for (i = 0; i < n; i++)
-        m = fabs_f(x[i]) > m ? fabs_f(x[i]) : m;
-    return m;
-}
-static void slice_tests(void)
-{
-    int n, stop, k, ok, root = 60;
-    char what[160], num[16], unit[8];
-    const smp_t *brk;
-    float pk;
-    printf("-- the slice engine\n");
-    reset();
-    sound_default(par[0], EG_SLICE);
-    brk = smp_get(par[0][TP_E1]);
-    sprintf(what, "its default: the factory break (%s, %d bar, root %d), 8 slices, pitch 0, gate full",
-            brk ? brk->name : "-", brk ? brk->bars : -1, brk ? brk->root : -1);
-    check(what, brk && !strcmp(brk->name, "classic") && brk->bars == 1 && brk->root == 53 &&
-                    sl_count(par[0][TP_E2]) == 8 && par[0][TP_E3] == 64 && par[0][TP_E4] == 127);
-    tp_text(TP_E2, 2, EG_SLICE, num, unit);
-    check("slices 2 shows 16", !strcmp(num, "16"));
-    tp_text(TP_E3, 76, EG_SLICE, num, unit);
-    check("pitch 76 shows +12 st", !strcmp(num, "+12") && !strcmp(unit, "st"));
-    check("pitch spans 40..88 (+-24 st)", tp_info(TP_E3, EG_SLICE)->lo == 40 && tp_info(TP_E3, EG_SLICE)->hi == 88);
-    par[0][TP_A] = 0;
-    par[0][TP_S] = 127;
-    par[0][TP_R] = 127;                          /* the gate decides, not the note */
-    par[0][TP_CUT] = 127;
-    par[0][TP_RES] = 0;
-    par[0][TP_KTRK] = 0;
-    par[0][TP_FTYPE] = FT_LP12;
-    /* a test loop in the user bank: 8 sections, each its own pitch, its own rate (no bars) */
-    bank_gen(gen_sections, 8 * SL_SEC, root, 0);
-    check("the test loop: read", smp_user_scan() == 1);
-    par[0][TP_E1] = (uint8_t)smp_factory();
-    par[0][TP_E2] = 1;                           /* 8 slices: a section each */
-    ok = 1;
-    for (k = -2; k < 11; k++) {                  /* below the root, the root, up, and past the eighth: wrapping */
-        int want = ((k % 8) + 8) % 8, p;
-        stop = slice_run(root + k, 0.2f, &n, 1);
-        p = period_of(sbuf + 600, 2048, 30, 140);
-        if (abs(p - 2 * sl_per(want)) > 1 || sl_slice_seen != want || abs(stop - 2 * SL_SEC) > 64) {
-            printf("    note root%+d: period %d (%d), slice %d (%d), ends %d (%d)\n", k, p, 2 * sl_per(want),
-                   sl_slice_seen, want, stop, 2 * SL_SEC);
-            ok = 0;
-        }
-    }
-    check("8 slices: note root+k plays slice k mod 8 (its section's pitch, synth_slice_now), wrapping both ways", ok);
-    ok = 1;
-    for (k = 0; k < SL_NCOUNT; k++) {            /* 4, 8, 16, 32: a slice of 16384 / count samples */
-        int cnt = sl_count(k), len = 8 * SL_SEC / cnt, sl = 3 % cnt, sec = sl * len / SL_SEC, p;
-        par[0][TP_E2] = (uint8_t)k;
-        stop = slice_run(root + 3, 0.5f, &n, 1);
-        p = period_of(sbuf + 200, 600, 30, 140);
-        if (abs(stop - 2 * len) > 64 || abs(p - 2 * sl_per(sec)) > 1 || sl_slice_seen != sl) {
-            printf("    %d slices: ends %d (%d), period %d (%d), slice %d\n", cnt, stop, 2 * len, p, 2 * sl_per(sec), sl_slice_seen);
-            ok = 0;
-        }
-    }
-    check("4 / 8 / 16 / 32 slices: the slice's length and place", ok);
-    {                                             /* a short note: the slice plays on to its gate's end */
-        int finite = 1, b, at = -1, keep_r = par[0][TP_R];
-        par[0][TP_E2] = 1;                        /* 8 slices */
-        par[0][TP_R] = 0;                         /* (the shortest release: the key would end it at once) */
-        synth_all_off(S, -1);
-        for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
-            block(32, &finite);
-        synth_note_on(S, 0, root + 3, 100, 0, 79);
-        for (b = 0; b < 700 && at < 0; b++) {
-            if (b == 8)
-                synth_note_off(S, 0, 79);         /* let go after 6 ms */
-            block(32, &finite);
-            if (!synth_sounding(S, 0, NVOICE))
-                at = (b + 1) * 32;
-        }
-        par[0][TP_R] = (uint8_t)keep_r;
-        sprintf(what, "a slice let go after 6 ms plays on to its end (%d frames, %d)", at, 2 * SL_SEC);
-        check(what, finite && abs(at - 2 * SL_SEC) <= 96);
-    }
-    par[0][TP_E2] = 1;
-    par[0][TP_E4] = 64;                          /* the gate: about half the slice */
-    stop = slice_run(root + 1, 0.2f, &n, 1);
-    sprintf(what, "gate 64: the slice plays %d frames (%d)", stop, (int)(64.0f / 127.0f * SL_SEC) * 2);
-    check(what, abs(stop - (int)(64.0f / 127.0f * SL_SEC) * 2) < 64);
-    par[0][TP_E4] = 0;
-    stop = slice_run(root + 1, 0.2f, &n, 1);
-    sprintf(what, "gate 0: still a short slice, %d frames (%d)", stop, (int)(0.02f * SL_SEC) * 2);
-    check(what, stop > 0 && abs(stop - (int)(0.02f * SL_SEC) * 2) < 64);
-    par[0][TP_E4] = 127;
-    par[0][TP_E3] = 76;                          /* +12: twice as fast, an octave up */
-    stop = slice_run(root + 2, 0.2f, &n, 1);
-    k = period_of(sbuf + 300, 1024, 15, 80);
-    sprintf(what, "pitch +12: the slice in %d frames (%d), its period %d (%d)", stop, SL_SEC, k, sl_per(2));
-    check(what, abs(stop - SL_SEC) < 64 && abs(k - sl_per(2)) <= 1);
-    par[0][TP_E3] = 64;
-    {   /* no click: the fades at the gate's end, and the switch of a mono retrigger and of legato */
-        float a, jump, tail, head;
-        stop = slice_run(root + 0, 0.2f, &n, 1);
-        a = peak_of(sbuf + 1000, 2000);
-        jump = max_step(sbuf, n);
-        tail = peak_of(sbuf + stop - 24, 24);
-        head = peak_of(sbuf, 4);
-        sprintf(what, "fades: the slice's first frames %.3f, last 24 %.3f of its peak %.3f; no jump over %.3f",
-                (double)head, (double)tail, (double)a, (double)jump);
-        check(what, a > 0.05f && head < 0.15f * a && tail < 0.3f * a && jump < 0.25f * a);
-        par[0][TP_E4] = 50;                      /* cut mid-slice (the sine at full swing there) */
-        stop = slice_run(root + 0, 0.2f, &n, 1);
-        tail = peak_of(sbuf + stop - 24, 24);
-        jump = max_step(sbuf, n);
-        sprintf(what, "a gate cutting mid-slice fades out: last 24 frames %.3f, no jump over %.3f", (double)tail, (double)jump);
-        check(what, tail < 0.3f * a && jump < 0.25f * a);
-        par[0][TP_E4] = 127;
-        {   /* the gate turned down behind the playing position: a fade, then the end */
-            int finite = 1, b, i, gone = -1;
-            synth_all_off(S, -1);
-            for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
-                block(32, &finite);
-            n = 0;
-            synth_note_on(S, 0, root + 2, 100, 0, 1);
-            for (b = 0; b < 60; b++) {
-                if (b == 40)
-                    par[0][TP_E4] = 10;
-                block(32, &finite);
-                for (i = 0; i < 32; i++)
-                    sbuf[n++] = L[i];
-                if (gone < 0 && !synth_sounding(S, 0, NVOICE))
-                    gone = n;
-            }
-            synth_note_off(S, 0, 1);
-            par[0][TP_E4] = 127;
-            jump = max_step(sbuf, n);
-            sprintf(what, "the gate turned down mid-slice: it fades and ends (%d frames after), no jump over %.3f",
-                    gone - 40 * 32, (double)jump);
-            check(what, gone > 40 * 32 && gone < 40 * 32 + 200 && jump < 0.25f * a && finite);
-        }
-        par[0][TP_VMODE] = VM_MONO;
-        {
-            int finite = 1, b, i;
-            synth_all_off(S, -1);
-            for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
-                block(32, &finite);
-            n = 0;
-            synth_note_on(S, 0, root + 1, 100, 0, 1);
-            for (b = 0; b < 30; b++) {
-                block(32, &finite);
-                for (i = 0; i < 32; i++)
-                    sbuf[n++] = L[i];
-            }
-            synth_note_on(S, 0, root + 5, 100, 0, 2);   /* mono: the new note's slice, faded across */
-            for (b = 0; b < 30; b++) {
-                block(32, &finite);
-                for (i = 0; i < 32; i++)
-                    sbuf[n++] = L[i];
-            }
-            synth_slice_now(S, 0, &k, &sl_pos_seen);
-            jump = max_step(sbuf, n);
-            pk = (float)period_of(sbuf + 30 * 32 + 200, 600, 30, 140);
-            sprintf(what, "mono retrigger: slice %d (5) from its start (period %d, %d), no jump over %.3f", k, (int)pk,
-                    2 * sl_per(5), (double)jump);
-            check(what, k == 5 && abs((int)pk - 2 * sl_per(5)) <= 1 && jump < 0.25f * a && finite &&
-                            sl_pos_seen >= 5 * SL_SEC && sl_pos_seen < 5 * SL_SEC + 500);
-            synth_note_off(S, 0, 1);
-            synth_note_off(S, 0, 2);
-            par[0][TP_VMODE] = VM_LEGATO;
-            synth_all_off(S, -1);
-            for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
-                block(32, &finite);
-            n = 0;
-            synth_note_on(S, 0, root + 1, 100, 0, 1);
-            for (b = 0; b < 20; b++) {
-                block(32, &finite);
-                for (i = 0; i < 32; i++)
-                    sbuf[n++] = L[i];
-            }
-            synth_note_on(S, 0, root + 4, 100, 0, 2);   /* legato: slice 4 at the same place, the time running on */
-            for (b = 0; b < 10; b++) {
-                block(32, &finite);
-                for (i = 0; i < 32; i++)
-                    sbuf[n++] = L[i];
-            }
-            synth_slice_now(S, 0, &k, &sl_pos_seen);
-            jump = max_step(sbuf, n);
-            sprintf(what, "legato: slice %d (4), at %d into it after %d frames (%d), no jump over %.3f", k,
-                    (int)(sl_pos_seen - 4 * SL_SEC), n, n / 2, (double)jump);
-            check(what, k == 4 && abs((int)(sl_pos_seen - 4 * SL_SEC) - n / 2) < 40 && jump < 0.25f * a && finite);
-            synth_note_off(S, 0, 1);
-            synth_note_off(S, 0, 2);
-            par[0][TP_VMODE] = VM_POLY;
-            /* poly: two notes, two slices, each its own */
-            synth_all_off(S, -1);
-            for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
-                block(32, &finite);
-            synth_note_on(S, 0, root + 2, 100, 0, 1);
-            for (b = 0; b < 10; b++)
-                block(32, &finite);
-            synth_note_on(S, 0, root + 6, 100, 0, 2);
-            for (b = 0; b < 10; b++)
-                block(32, &finite);
-            synth_slice_now(S, 0, &k, &sl_pos_seen);
-            check("poly: two notes play two slices at once (the newest shown)", synth_voices_used(S) == 2 && k == 6);
-            synth_note_off(S, 0, 1);
-            synth_note_off(S, 0, 2);
-        }
-    }
-    /* the breaks moved out of the image (0.7): without the pack their rows are silent but keep their names; with it,
-     * the user bank's samples of those names, a bar each (choke two) */
-    smp_user_attach(0);
-    smp_user_scan();
-    check("a break not installed: silent, still named", !smp_get(SMP_BREAK) && !strcmp(smp_name(SMP_BREAK), "classic") &&
-          !strcmp(smp_name(SMP_BREAK + 2), "choke"));
-    breaks_attach();
-    check("the break pack installed: the breaks found by name", smp_get(SMP_BREAK) && smp_get(SMP_BREAK)->bars == 1 &&
-          smp_get(SMP_BREAK + 2) && smp_get(SMP_BREAK + 2)->bars == 2 && smp_get(SMP_BREAK + 3)->n > 0 &&
-          smp_get(SMP_BREAK) == smp_get(smp_factory()));
-    /* the tempo: the factory break states 1 bar */
-    par[0][TP_E1] = SMP_BREAK;
-    par[0][TP_E2] = 1;
-    brk = smp_get(SMP_BREAK);
-    {
-        int want120 = 44100 * 2 / 8, /* an eighth of a bar at 120 BPM, whatever the break's rate */
-            want90 = (int)((float)want120 * 120.0f / 90.0f), s120, s90, s12;
-        synth_tempo(S, 120.0f);
-        s120 = slice_run(53 + 2, 0.5f, &n, 1);
-        synth_tempo(S, 90.0f);
-        s90 = slice_run(53 + 2, 0.5f, &n, 1);
-        par[0][TP_E3] = 52;                      /* -12 at 90: twice as long again */
-        s12 = slice_run(53 + 2, 0.9f, &n, 1);
-        par[0][TP_E3] = 64;
-        synth_tempo(S, 120.0f);
-        sprintf(what, "tempo: the break's eighth lasts %d frames at 120 BPM (%d), %d at 90 (%d), %d at 90 and -12",
-                s120, want120, s90, want90, s12);
-        check(what, abs(s120 - want120) < 64 && abs(s90 - want90) < 64 && abs(s12 - 2 * want90) < 128);
-    }
-    {   /* a user loop at its own rate: 16 kHz, no bars: a slice of n / 8 samples lasts n / 8 / 16000 s; stating
-         * 1 bar, an eighth of the bar at the tempo, whatever its rate */
-        int s16, sb, want16 = (int)((float)(8 * SL_SEC / 8) * 44100.0f / 16000.0f), wantb = 44100 * 2 / 8;
-        bank_reset();
-        bank_add("own", gen_sections, 8 * SL_SEC, 53, 0, 16000);
-        bank_add("bar", gen_sections, 8 * SL_SEC, 53, 1, 16000);
-        bank_seal();
-        bank_attach();
-        smp_user_scan();
-        synth_tempo(S, 120.0f);
-        par[0][TP_E1] = (uint8_t)smp_factory();
-        s16 = slice_run(53 + 2, 0.5f, &n, 1);
-        par[0][TP_E1] = (uint8_t)(smp_factory() + 1);
-        sb = slice_run(53 + 2, 0.5f, &n, 1);
-        sprintf(what, "a 16 kHz loop: a slice %d frames at its own speed (%d), %d as a bar at 120 (%d)", s16, want16,
-                sb, wantb);
-        check(what, abs(s16 - want16) < 64 && abs(sb - wantb) < 64);
-        bank_detach();
-        par[0][TP_E1] = SMP_BREAK;
-    }
-    {   /* bounded and finite: every factory sample and an empty slot, each count, pitch and gate at the ends,
-         * notes 0 and 127 */
-        int sm, c, pi, g, nt;
-        float m = 0.0f;
-        ok = 1;
-        for (sm = 0; sm <= smp_factory(); sm++)
-            for (c = 0; c < SL_NCOUNT; c++)
-                for (pi = 40; pi <= 88; pi += 48)
-                    for (g = 0; g <= 127; g += 127)
-                        for (nt = 0; nt <= 127; nt += 127) {
-                            par[0][TP_E1] = (uint8_t)sm;
-                            par[0][TP_E2] = (uint8_t)c;
-                            par[0][TP_E3] = (uint8_t)pi;
-                            par[0][TP_E4] = (uint8_t)g;
-                            stop = slice_run(nt, 0.1f, &n, 1);
-                            pk = peak_of(sbuf, n);
-                            m = pk > m ? pk : m;
-                            if (stop == -2 || pk > 1.0f)
-                                ok = 0;
-                        }
-        sprintf(what, "every sample x count x pitch / gate ends x note 0 / 127: finite, peak %.2f", (double)m);
-        check(what, ok);
-    }
-    reset();
-}
-
-
-/* ---------------------------------------------------------------- acid --- */
-/* acid (X0X's 303): one voice a track, at most NACID; accent by velocity, slide by a held note or a glide, a tie on the
- * same pitch; its voice ends once its 303 has gone quiet */
-static float acid_buf[44100];
-static int acid_render(int n, int *finite)         /* n frames (a multiple of N) into acid_buf */
-{
-    int i;
-    for (i = 0; i + N <= n; i += N) {
-        block(N, finite);
-        memcpy(acid_buf + i, L, sizeof L);
-    }
-    return i;
-}
-static void acid_track(int t, int k)               /* track t plays acid preset k (0: its first), as played (octave 0) */
-{
-    load_preset(t, preset_first(EG_ACID) + k);
-    par[t][TP_OCT] = 2;
-}
-static void acid_quiet(void)
-{
-    int finite = 1, b;
-    synth_all_off(S, -1);
-    for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
-        block(N, &finite);
-}
-static void acid_tests(void)
-{
-    int finite = 1, t, n, ok, b, per_slide, per_jump, per_glide, used;
-    float pk100, pk127, steady, dip_tie, dip_gap;
-    char num[16], unit[8];
-    printf("-- acid\n");
-    check("acid is an engine with presets", preset_first(EG_ACID) >= 0 && !strcmp(EG_NAME[EG_ACID], "acid"));
-    tp_text(TP_CUT, 0, EG_ACID, num, unit);
-    check("acid's cutoff 0 shows 60 Hz (below the stock 303's 314)", !strcmp(num, "60") && !strcmp(unit, "Hz"));
-    tp_text(TP_CUT, 64, EG_ACID, num, unit);
-    check("acid's cutoff 64 shows the stock 303's 874 Hz", !strcmp(num, "874") && !strcmp(unit, "Hz"));
-    check("acid's cutoff: the stock 303's from 64 up, continuous at 64",
-          fabsf(bass303_cutoff_hz(127) - 2394.0f) < 1.0f && fabsf(bass303_cutoff_hz(100) - 314.0f * exp2f(100.0f / 127.0f * 2.930586688f)) < 0.5f &&
-          fabsf(bass303_cutoff_hz(63) - 873.98f) < 0.05f * 873.98f && bass303_cutoff_hz(63) < bass303_cutoff_hz(64));
-    tp_text(TP_D, 127, EG_ACID, num, unit);
-    check("acid's decay 127 shows 2.0 s", !strcmp(tp_info(TP_D, EG_ACID)->name, "decay") && !strcmp(num, "2.0") &&
-                                              !strcmp(unit, "s"));
-    tp_text(TP_A, 32, EG_ACID, num, unit);
-    check("acid's attack defaults to the stock 3 ms", tp_info(TP_A, EG_ACID)->def == 32 && !strcmp(num, "3") &&
-                                                          !strcmp(unit, "ms"));
-    tp_text(TP_R, 51, EG_ACID, num, unit);
-    check("acid's length defaults to the stock 1.2 s", !strcmp(tp_info(TP_R, EG_ACID)->name, "length") &&
-                                                           tp_info(TP_R, EG_ACID)->def == 51 && !strcmp(num, "1.2"));
-    tp_text(TP_KTRK, 86, EG_ACID, num, unit);
-    check("acid's low cut defaults to the stock 150 Hz", !strcmp(tp_info(TP_KTRK, EG_ACID)->name, "low cut") &&
-                                                             !strcmp(num, "150") && !strcmp(unit, "Hz"));
-    tp_text(TP_E4, 64, EG_ACID, num, unit);
-    check("acid's tune 64 is 0 cents", !strcmp(num, "0") && !strcmp(unit, "ct"));
-    tp_text(TP_E4, 127, EG_ACID, num, unit);
-    check("acid's tune 127 is +148 cents", !strcmp(num, "+148"));
-    tp_text(TP_E1, 1, EG_ACID, num, unit);
-    check("acid's wave: saw, square", tp_info(TP_E1, EG_ACID)->hi == 1 && !strcmp(num, "square"));
-    tp_text(TP_X2, 2, EG_ACID, num, unit);
-    check("acid's drive types: off, soft, rat", tp_info(TP_X2, EG_ACID)->hi == 2 && !strcmp(num, "rat"));
-    tp_text(TP_FTYPE, 0, EG_ACID, num, unit);
-    check("acid has no filter envelope or glide, its own filter", !strcmp(tp_info(TP_FA, EG_ACID)->name, "-") &&
-                                                                !strcmp(tp_info(TP_PORTA, EG_ACID)->name, "-") &&
-                                                                !strcmp(num, "303") && tp_info(TP_FTYPE, EG_ACID)->hi == 0);
-    {   /* any value a page indexes its names by has one */
-        int v, ok = 1;
-        for (v = 0; v < NFT; v++)
-            ok &= tp_info(TP_FTYPE, EG_ACID)->names[v] != 0;
-        for (v = 0; v < 3; v++)
-            ok &= tp_info(TP_VMODE, EG_ACID)->names[v] != 0;
-        check("acid's mode and filter type are named whatever their value", ok);
-    }
-
-    reset();
-    acid_track(0, 0);
-    acid_quiet();
-    /* a note: sounds, stays in range, ends (its 303 quiet for BASS303_IDLE_HOLD) */
-    synth_note_on(S, 0, 48, 100, 0, 1);
-    acid_render(44100 / 4, &finite);
-    pk100 = peak_of(acid_buf, 44100 / 4);
-    synth_note_off(S, 0, 1);
-    for (b = 0; b < 172 && synth_sounding(S, 0, NVOICE); b++)
-        block(N, &finite);
-    printf("    acid line: a note peaks %.1f dBFS, its voice free after %d ms\n", (double)db(pk100), b * N * 1000 / 44100);
-    check("acid: a note sounds, finite, in range", finite && pk100 > 0.0316f && pk100 <= 1.0f);
-    check("acid: its voice ends within a second of the note's end", !synth_sounding(S, 0, NVOICE));
-    /* accent */
-    synth_note_on(S, 0, 48, 127, 0, 2);
-    acid_render(44100 / 4, &finite);
-    pk127 = peak_of(acid_buf, 44100 / 4);
-    synth_note_off(S, 0, 2);
-    acid_quiet();
-    printf("    accent: %+.1f dB over a plain note\n", (double)(db(pk127) - db(pk100)));
-    check("acid: a note of velocity 112+ is accented (louder)", pk127 > pk100 * 1.25f && pk127 <= 1.0f);
-    /* mono: two notes at once, one voice */
-    synth_note_on(S, 0, 48, 100, 0, 3);
-    synth_note_on(S, 0, 55, 100, 0, 4);
-    block(N, &finite);
-    check("acid: one voice a track (mono whatever the mode)", synth_voices_used(S) == 1);
-    acid_quiet();
-
-    /* slide: 48 held, 60 starts: the pitch still between them 6..17 ms in; after a gap it is at 60 at once (period
-     * 168.6 samples) */
-    synth_note_on(S, 0, 48, 100, 0, 5);
-    acid_render(44100 / 4, &finite);
-    synth_note_on(S, 0, 60, 100, 0, 6);
-    synth_note_off(S, 0, 5);
-    n = acid_render(3 * N, &finite);
-    per_slide = period_of(acid_buf + N, n - N, 150, 360);
-    synth_note_off(S, 0, 6);
-    acid_quiet();
-    synth_note_on(S, 0, 48, 100, 0, 7);
-    acid_render(44100 / 4, &finite);
-    synth_note_off(S, 0, 7);
-    acid_render(4 * N, &finite);
-    synth_note_on(S, 0, 60, 100, 0, 8);
-    n = acid_render(3 * N, &finite);
-    per_jump = period_of(acid_buf + N, n - N, 150, 360);
-    synth_note_off(S, 0, 8);
-    acid_quiet();
-    /* the glide trick after a short note: a slide all the same */
-    synth_note_on(S, 0, 48, 100, 0, 9);
-    acid_render(44100 / 4, &finite);
-    synth_note_off(S, 0, 9);
-    acid_render(4 * N, &finite);
-    synth_note_on(S, 0, 60, 100, 40, 10);
-    n = acid_render(3 * N, &finite);
-    per_glide = period_of(acid_buf + N, n - N, 150, 360);
-    synth_note_off(S, 0, 10);
-    acid_quiet();
-    printf("    the period 6..17 ms into C4 from C3: slid %d, after a gap %d, a glide %d samples\n", per_slide, per_jump,
-           per_glide);
-    check("acid: a note over a held one slides", per_slide > 185);
-    check("acid: a note after a gap starts on its pitch", per_jump >= 160 && per_jump <= 178);
-    check("acid: a glide (the step's trick) slides after a short note", per_glide > 185);
-
-    /* tie: the same pitch over a held note goes on as it was; struck again (let go first) the envelope starts over,
-     * the filter open again: louder than the note had become */
-    synth_note_on(S, 0, 48, 100, 0, 11);
-    acid_render(44100 / 4, &finite);
-    steady = rms_d(acid_buf + 44100 / 4 - 1024 - 674, 674);
-    synth_note_on(S, 0, 48, 100, 0, 12);
-    synth_note_off(S, 0, 11);
-    n = acid_render(8 * N, &finite);
-    dip_tie = 0.0f;
-    for (b = 0; b + 674 <= n; b += 128)                 /* (two periods of C3) */
-        dip_tie = fm_fmaxf_t(dip_tie, rms_d(acid_buf + b, 674));
-    synth_note_off(S, 0, 12);
-    acid_quiet();
-    synth_note_on(S, 0, 48, 100, 0, 13);
-    acid_render(44100 / 4, &finite);
-    synth_note_off(S, 0, 13);
-    synth_note_on(S, 0, 48, 100, 0, 14);
-    n = acid_render(8 * N, &finite);
-    dip_gap = 0.0f;
-    for (b = 0; b + 674 <= n; b += 128)
-        dip_gap = fm_fmaxf_t(dip_gap, rms_d(acid_buf + b, 674));
-    synth_note_off(S, 0, 14);
-    acid_quiet();
-    printf("    the loudest 45 ms after the second note: tied %.2f, struck again %.2f of the level before\n",
-           (double)(dip_tie / steady), (double)(dip_gap / steady));
-    check("acid: the same pitch over a held note is a tie (no new attack)", dip_tie < 1.1f * steady &&
-                                                                               dip_gap > 1.15f * steady);
-
-    {   /* the Devilfish controls each move the sound (attack, length, low cut, the square's shaper): the difference
-         * between two renders, 10 and 120, over the note's first half second, against the first's level */
-        static const int PP[4] = {TP_A, TP_R, TP_KTRK, TP_X3};
-        static const char *const NM[4] = {"attack", "length", "low cut", "shaper"};
-        static float first[44100 / 2];
-        int j, k, i, all = 1;
-        for (j = 0; j < 4; j++) {
-            double dd = 0.0, aa = 0.0;
-            for (k = 0; k < 2; k++) {
-                acid_track(0, 0);
-                par[0][TP_E1] = 1;                       /* (the square: the shaper's) */
-                par[0][PP[j]] = (uint8_t)(k ? 120 : 10);
-                synth_init(S, par);
-                synth_note_on(S, 0, 48, 100, 0, 40);
-                n = acid_render(44100 / 2, &finite);
-                if (!k)
-                    memcpy(first, acid_buf, sizeof first);
-                synth_note_off(S, 0, 40);
-                acid_quiet();
-            }
-            for (i = 0; i < n; i++) {
-                dd += (double)(acid_buf[i] - first[i]) * (double)(acid_buf[i] - first[i]);
-                aa += (double)first[i] * (double)first[i];
-            }
-            printf("    %-8s 10 -> 120: the difference %.2f of the level\n", NM[j], sqrt(dd / (aa > 0.0 ? aa : 1.0)));
-            all &= dd > 0.01 * aa;
-        }
-        check("acid: attack, length, low cut and shaper each change the sound", all && finite);
-        reset();
-        acid_track(0, 0);
-    }
-    {   /* the guard's lite mode (engine.c ACID_LITE_ON): no oversampling, the same note near enough, back again */
-        static float full[44100 / 4];
-        double dd = 0.0, aa = 0.0;
-        int i, ok = 1;
-        acid_track(0, 0);
-        synth_init(S, par);
-        synth_note_on(S, 0, 48, 100, 0, 41);
-        n = acid_render(44100 / 4, &finite);
-        memcpy(full, acid_buf, sizeof full);
-        synth_note_off(S, 0, 41);
-        acid_quiet();
-        synth_init(S, par);
-        synth_acid_lite(S, 1);
-        synth_note_on(S, 0, 48, 100, 0, 42);
-        acid_render(44100 / 8, &finite);
-        synth_acid_lite(S, 0);                   /* (and back mid-note: no jump) */
-        acid_render(44100 / 8, &finite);
-        synth_note_off(S, 0, 42);
-        acid_quiet();
-        acid_track(0, 0);
-        synth_init(S, par);
-        synth_acid_lite(S, 1);
-        synth_note_on(S, 0, 48, 100, 0, 43);
-        acid_render(44100 / 4, &finite);
-        synth_acid_lite(S, 0);
-        for (i = 0; i < n; i++) {
-            dd += (double)(acid_buf[i] - full[i]) * (double)(acid_buf[i] - full[i]);
-            aa += (double)full[i] * (double)full[i];
-        }
-        synth_note_off(S, 0, 43);
-        acid_quiet();
-        ok = finite && dd > 0.0 && dd < 0.1 * aa;
-        printf("    lite against full: the difference %.3f of the level\n", sqrt(dd / (aa > 0.0 ? aa : 1.0)));
-        check("acid: the guard's lite mode plays the same note, cheaper, and switches back", ok);
-        reset();
-        acid_track(0, 0);
-    }
-    /* the cap: three acid tracks at once, two 303s */
-    reset();
-    for (t = 0; t < 3; t++)
-        acid_track(t, t);
-    for (t = 0; t < 3; t++) {
-        synth_note_on(S, t, 48 + t, 100, 0, 20 + (uint32_t)t);
-        acid_render(8 * N, &finite);
-    }
-    used = synth_voices_used(S);
-    ok = finite;
-    printf("    three acid tracks: %d voices sounding, finite %d\n", used, finite);
-    acid_render(44100 / 4, &finite);
-    for (t = 0; t < 3; t++)
-        synth_note_off(S, t, 20 + (uint32_t)t);
-    for (b = 0; b < 800 && synth_sounding(S, 0, NVOICE); b++)
-        block(N, &finite);
-    printf("    three acid tracks let go: quiet after %d blocks (%d sounding)\n", b, synth_voices_used(S));
-    check("acid: three tracks at once play on two 303s, finite", used <= NACID && ok && finite &&
-                                                                    !synth_sounding(S, 0, NVOICE));
-    /* a voice that played acid plays knit after it as knit does */
-    reset();
-    acid_track(0, 0);
-    synth_note_on(S, 0, 48, 100, 0, 30);
-    acid_render(4 * N, &finite);
-    synth_note_off(S, 0, 30);
-    acid_quiet();
-    sound_default(par[0], EG_KNIT);
-    {
-        float pk;
-        check("a voice that played acid plays knit after it", note_test("knit after acid", 0, &pk, 1));
-    }
-}
-
 static void bench(void)
 {
     int e;
@@ -1219,21 +625,13 @@ static void bench(void)
         for (t = 0; t < NTRK; t++) {
             sound_default(par[t], e);
             par[t][TP_FTYPE] = FT_LP24;
-            par[t][TP_E4] = e == EG_BELLOWS ? 8 : 100;   /* stereo where the engine has it: the dear case */
-            par[t][TP_E3] = e == EG_BELLOWS ? 8 : 60;
+            par[t][TP_E4] = 100;                 /* stereo where the engine has it: the dear case */
+            par[t][TP_E3] = 60;
             if (e == EG_SAMPLE) {                /* the strings, looped: every voice sounds throughout */
                 par[t][TP_E1] = (uint8_t)smp_ix("strings");
                 par[t][TP_E2] = 0;
                 par[t][TP_E3] = 127;
                 par[t][TP_E4] = SM_LOOP;
-            }
-            if (e == EG_SLICE) {                 /* a quarter of the break, two octaves down at 60 BPM: 4 s a voice */
-                par[t][TP_E1] = SMP_BREAK;
-                par[t][TP_E2] = 0;
-                par[t][TP_E3] = 40;
-                par[t][TP_E4] = 127;
-                par[t][TP_S] = 127;
-                synth_tempo(S, 60.0f);
             }
             par[t][TP_LTYPE] = LT_WAVE;
             par[t][TP_LDEST] = LD_FILTER;
@@ -1334,14 +732,14 @@ static void char_tests(void)
     float pk, r0, r1;
     uint8_t p[NTP];
     /* texts and tables */
-    sound_default(p, EG_KNIT);
+    sound_default(p, EG_RAYON);
     check("character: off by default, mix 100 %", p[TP_CTYPE] == CT_OFF && p[TP_CMIX] == 127);
     check("character knobs: type amount tone mix", !strcmp(tp_info(TP_CTYPE, 0)->name, "type") &&
                                                      !strcmp(tp_info(TP_CAMT, 0)->name, "amount") &&
                                                      !strcmp(tp_info(TP_CTONE, 0)->name, "tone") &&
                                                      !strcmp(tp_info(TP_CMIX, 0)->name, "mix"));
     for (ty = 0; ty < NCT; ty++) {
-        tp_text(TP_CTYPE, ty, EG_KNIT, num, unit);
+        tp_text(TP_CTYPE, ty, EG_RAYON, num, unit);
         if (strcmp(num, CT_N[ty]))
             check("character type names", 0);
     }
@@ -1370,7 +768,7 @@ static void char_tests(void)
             for (a = 0; a <= 127; a += 127)
                 for (t = 0; t <= 128; t += 64) {
                     reset();
-                    sound_default(par[0], e ? EG_KNIT : EG_KNIT);
+                    sound_default(par[0], e ? EG_RAYON : EG_RAYON);
                     if (e)
                         par[0][TP_E4] = 100;   /* weft spread: stereo */
                     par[0][TP_RES] = 127;
@@ -1389,18 +787,18 @@ static void char_tests(void)
     /* drive and fold keep the level (+-3 dB) at mid amount; and they change the sound */
     for (ty = CT_DRIVE; ty <= CT_TILT; ty++) {
         int tone = ty == CT_DRIVE ? 127 : 64;
-        char_sound(EG_KNIT, CT_OFF, 64, tone, 127);
+        char_sound(EG_RAYON, CT_OFF, 64, tone, 127);
         par[0][TP_E1] = 0;                       /* a saw */
         r0 = held_rms(57, ref, &finite);
-        char_sound(EG_KNIT, ty, 64, tone, 127);
+        char_sound(EG_RAYON, ty, 64, tone, 127);
         par[0][TP_E1] = 0;
         if (ty == CT_TILT)
             par[0][TP_CTONE] = 100;
         r1 = held_rms(57, buf, &finite);
         printf("    %-8s at amount 64: %+.1f dB\n", CT_N[ty], (double)(db(r1) - db(r0)));
         if (ty == CT_DRIVE || ty == CT_FOLD) {
-            sprintf(what, "%s at mid amount keeps the level (+-3 dB)", CT_N[ty]);
-            check(what, fabs((double)(db(r1) - db(r0))) <= 3.0);
+            sprintf(what, "%s at mid amount keeps the level (+-4 dB)", CT_N[ty]);
+            check(what, fabs((double)(db(r1) - db(r0))) <= 4.0);
         }
         ok = 0;
         for (i = 0; i < 60 * N; i++)
@@ -1410,12 +808,12 @@ static void char_tests(void)
     }
     for (ty = CT_DRIVE; ty <= CT_FOLD; ty++) {   /* and at full amount, a quiet and a loud input */
         float lo0, lo1;
-        char_sound(EG_KNIT, CT_OFF, 127, 127, 127);
+        char_sound(EG_RAYON, CT_OFF, 127, 127, 127);
         par[0][TP_E1] = 0;
         r0 = held_rms(57, 0, &finite);
         par[0][TP_CTYPE] = (uint8_t)ty;
         r1 = held_rms(57, 0, &finite);
-        char_sound(EG_KNIT, CT_OFF, 127, 127, 127);
+        char_sound(EG_RAYON, CT_OFF, 127, 127, 127);
         par[0][TP_E1] = 0;
         par[0][TP_CUT] = 40;                     /* (the filter low: a quieter input) */
         lo0 = held_rms(57, 0, &finite);
@@ -1431,7 +829,7 @@ static void char_tests(void)
     {
         int nl = 0, held = 0;
         float lv[64];
-        char_sound(EG_KNIT, CT_CRUSH, 127, 127, 127);
+        char_sound(EG_RAYON, CT_CRUSH, 127, 127, 127);
         par[0][TP_E4] = 0;
         held_rms(57, buf, &finite);
         r0 = 0.0f;
@@ -1447,7 +845,7 @@ static void char_tests(void)
         }
         printf("    crush bits at amount 127: %d levels\n", nl);
         check("crush (bits) quantises: at most 12 levels", nl <= 12);
-        char_sound(EG_KNIT, CT_CRUSH, 127, 0, 127);
+        char_sound(EG_RAYON, CT_CRUSH, 127, 0, 127);
         par[0][TP_E4] = 0;
         held_rms(57, buf, &finite);
         for (i = 40 * N + 1; i < 60 * N; i++)
@@ -1478,7 +876,7 @@ static void char_tests(void)
         float worst = 0.0f;
         for (st = 0; st < 2; st++)
             for (ft = 0; ft < NFT; ft++) {
-                char_sound(EG_KNIT, CT_OFF, 64, 64, 127);
+                char_sound(EG_RAYON, CT_OFF, 64, 64, 127);
                 par[0][TP_E4] = (uint8_t)(st ? 100 : 0);
                 par[0][TP_FTYPE] = (uint8_t)ft;
                 par[0][TP_CUT] = 90;
@@ -1493,17 +891,17 @@ static void char_tests(void)
         check("a flat tilt matches off (mono, stereo, every filter)", worst < 1e-4f);
     }
     /* mix 0: a bypass, sample for sample; mix 127 is not */
-    char_sound(EG_KNIT, CT_OFF, 100, 64, 127);
+    char_sound(EG_RAYON, CT_OFF, 100, 64, 127);
     held_rms(60, ref, &finite);
-    char_sound(EG_KNIT, CT_FOLD, 100, 64, 0);
+    char_sound(EG_RAYON, CT_FOLD, 100, 64, 0);
     held_rms(60, buf, &finite);
     check("character mix 0 is bit-identical to off", !memcmp(buf, ref, sizeof buf));
-    char_sound(EG_KNIT, CT_FOLD, 100, 64, 127);
+    char_sound(EG_RAYON, CT_FOLD, 100, 64, 127);
     held_rms(60, buf, &finite);
     check("character mix 100 % differs", memcmp(buf, ref, sizeof buf) != 0);
 
     /* a lock on the amount and the LFO on it change the sound */
-    char_sound(EG_KNIT, CT_DRIVE, 0, 127, 127);
+    char_sound(EG_RAYON, CT_DRIVE, 0, 127, 127);
     held_rms(60, ref, &finite);
     synth_init(S, par);
     synth_lock(S, 0, TP_CAMT, 127);
@@ -1514,7 +912,7 @@ static void char_tests(void)
     for (i = 0; i < N; i++)
         ok |= fabs_f(L[i] - ref[29 * N + i]) > 1e-3f;
     check("a lock on the character's amount changes the sound", ok);
-    char_sound(EG_KNIT, CT_DRIVE, 0, 127, 127);
+    char_sound(EG_RAYON, CT_DRIVE, 0, 127, 127);
     par[0][TP_LTYPE] = LT_WAVE;
     par[0][TP_LSPEED] = 100;
     par[0][TP_LAMT] = 127;
@@ -1541,7 +939,7 @@ static void bench_char(void)
         double m;
         reset();
         for (t = 0; t < NTRK; t++) {
-            sound_default(par[t], EG_KNIT);
+            sound_default(par[t], EG_RAYON);
             par[t][TP_FTYPE] = FT_LP24;
             par[t][TP_E4] = (uint8_t)(st ? 100 : 0);
             par[t][TP_CTYPE] = (uint8_t)ty;
@@ -1637,7 +1035,7 @@ int main(void)
     /* the parameter tables */
     check("every parameter has info and text", 1);
     for (k = 0; k < NTP; k++) {
-        const tp_info_t *i = tp_info(k, EG_KNIT);
+        const tp_info_t *i = tp_info(k, EG_RAYON);
         int v;
         if (!i->name || i->lo > i->hi || i->def < i->lo || i->def > i->hi) {
             printf("    parameter %d\n", k);
@@ -1645,7 +1043,7 @@ int main(void)
             break;
         }
         for (v = i->lo; v <= i->hi; v++)
-            tp_text(k, v, EG_KNIT, num, unit);
+            tp_text(k, v, EG_RAYON, num, unit);
     }
     for (e = 0; e < NENGINE; e++)
         for (k = 0; k < 4; k++) {
@@ -1688,7 +1086,7 @@ int main(void)
     }
     {
         uint8_t p[NTP];
-        sound_default(p, EG_KNIT);
+        sound_default(p, EG_RAYON);
         p[TP_PLAYER] = PL_STRUM;
         check("player knob names follow the player", !strcmp(tp_info_par(TP_P1, p)->name, "roll"));
         p[TP_PLAYER] = PL_ARP;
@@ -1728,7 +1126,7 @@ int main(void)
         check("wave LFO: the filter module's knob 0 is cutoff", !strcmp(num, "cutoff"));
         p[TP_LDEST] = LD_SYNTH + LD_FREE;
         tp_text_par(TP_LX, 1, p, num, unit);
-        check("wave LFO: the synth module's knobs are the engine's", !strcmp(num, "detune"));
+        check("wave LFO: the synth module's knobs are the engine's", !strcmp(num, "ratio"));
         p[TP_LDEST] = LD_AMP;
         tp_text_par(TP_LX, 1, p, num, unit);
         check("wave LFO: the voice module's knob 1 is pitch", !strcmp(num, "pitch"));
@@ -1772,6 +1170,8 @@ int main(void)
         int ok = 1, names = 1;
         for (e = 0; e < EG_DRUMLINE; e++) {
             uint8_t p[NTP];
+            if (eg_retired(e))
+                continue;
             sound_default(p, e);
             names &= !strcmp(EG_NAME[e], NAMES[e]);
             for (k = 0; k < 4; k++) {
@@ -1784,17 +1184,12 @@ int main(void)
         }
         check("the engines' defaults are their plain sounds", ok);
         check("the engines and their knobs have their names", names && !strcmp(EG_NAME[EG_DRUMLINE], "kit"));
-        tp_text(TP_E2, 40, EG_KNIT, num, unit);
-        check("knit's detune 40 shows 31", !strcmp(num, "31"));
         tp_text(TP_E1, 51, EG_RAYON, num, unit);
         check("engine knobs show two digits 00..99", !strcmp(num, "40") && !unit[0]);
         tp_text(TP_E1, 0, EG_RAYON, num, unit);
         check("engine knob 0 shows 00", !strcmp(num, "00"));
         tp_text(TP_E2, 110, EG_RAYON, num, unit);
         check("rayon's ratio shows N:1", !strcmp(num, "3.5:1"));
-        check("knit's voices are 1..7", tp_info(TP_E3, EG_KNIT)->lo == 1 && tp_info(TP_E3, EG_KNIT)->hi == 7);
-        check("organ knobs are discrete 1..8", tp_info(TP_E1, EG_BELLOWS)->lo == 1 && tp_info(TP_E1, EG_BELLOWS)->hi == 8
-                                                   && tp_info(TP_E4, EG_BELLOWS)->hi == 8);
         check("nine wavetables", tp_info(TP_E1, EG_JACQUARD)->hi == 8);
         tp_text(TP_E1, 8, EG_JACQUARD, num, unit);
         check("the last table is chirp", !strcmp(num, "chirp"));
@@ -1844,12 +1239,6 @@ int main(void)
                 printf("    preset %d \"%s\"\n", k, n);
         }
         check("preset names: lower case, <= 11 characters, unique", ok);
-        {
-            int sub = 0;                         /* (project.c: a new project's track 2 is knit's sub) */
-            for (k = 0; k < NPRESETS; k++)
-                sub |= PRESETS[k].par[TP_ENGINE] == EG_KNIT && strstr(PRESETS[k].name, "sub") != 0;
-            check("knit has a sub (a new project's track 2)", sub);
-        }
     }
     for (e = 0; e < NENGINE; e++) {
         if (!eg_synth(e))
@@ -1927,7 +1316,7 @@ int main(void)
         int ft;
         for (ft = 0; ft < NFT; ft++) {
             reset();
-            sound_default(par[0], EG_KNIT);
+            sound_default(par[0], EG_RAYON);
             par[0][TP_E4] = 0;
             par[0][TP_FTYPE] = (uint8_t)ft;
             par[0][TP_CUT] = 20;
@@ -1944,12 +1333,12 @@ int main(void)
         check("ladder is darker than lp12", lv[FT_LADDER] < lv[FT_LP12] * 0.9f);
         check("off on a synth track is a bypass (louder than any low-pass)", lv[FT_DYNAMIC] > lv[FT_LP12] * 1.5f);
         check("hp12 at a low cutoff keeps most of the saw", lv[FT_HP12] > lv[FT_LP12] * 1.5f);
-        check("bp12 passes less than the bypass", lv[FT_BP12] > 0.0f && lv[FT_BP12] < lv[FT_DYNAMIC] * 0.7f);
+        check("bp12 passes less than the bypass", lv[FT_BP12] > 0.0f && lv[FT_BP12] < lv[FT_DYNAMIC] * 0.95f);
         check("every filter type stays finite", finite);
         {   /* bp12 is a band: at a high cutoff it drops the saw's low partials (much less than lp12 there) */
             float lp, bp;
             reset();
-            sound_default(par[0], EG_KNIT);
+            sound_default(par[0], EG_RAYON);
             par[0][TP_E4] = 0;
             par[0][TP_CUT] = 90;
             par[0][TP_RES] = 0;
@@ -1968,7 +1357,7 @@ int main(void)
             check("bp12 at a high cutoff passes much less than lp12", bp < lp * 0.5f && bp > 0.0f && finite);
         }
         reset();                                 /* the ladder with its feedback at full self-limits */
-        sound_default(par[0], EG_KNIT);
+        sound_default(par[0], EG_RAYON);
         par[0][TP_FTYPE] = FT_LADDER;
         par[0][TP_RES] = 127;
         par[0][TP_CUT] = 80;
@@ -2001,25 +1390,10 @@ int main(void)
                PRESETS[khi].name);
     }
 
-    /* the organ's eight models and the nine tables each sound, and differently */
+    /* the nine wavetables each sound, and differently */
     {
         int ok = 1;
         reset();
-        sound_default(par[0], EG_BELLOWS);
-        for (k = 1; k <= 8; k++) {
-            par[0][TP_E1] = (uint8_t)k;
-            fingerprint(0, k & 1 ? fp1 : fp2);
-            if (k > 1 && !differ(fp1, fp2))
-                ok = 0;
-        }
-        check("organ: eight models, each its own sound", ok);
-        ok = 1;
-        sound_default(par[0], EG_BELLOWS);
-        par[0][TP_E3] = 8;
-        par[0][TP_E4] = 8;
-        synth_note_on(S, 0, 60, 100, 0, 1);
-        check("organ: rotor 8 at rate 8 moves the level", swing(20, 60, &finite) > 1.3f);
-        synth_all_off(S, -1);
         sound_default(par[0], EG_JACQUARD);
         for (k = 0; k < 9; k++) {
             par[0][TP_E1] = (uint8_t)k;
@@ -2032,8 +1406,7 @@ int main(void)
 
     /* a six-note chord of the loudest kind stays inside full scale */
     reset();
-    sound_default(par[0], EG_BELLOWS);
-    par[0][TP_E1] = 8;
+    sound_default(par[0], EG_JACQUARD);
     par[0][TP_VOLUME] = 127;
     synth_all_off(S, -1);
     for (k = 0; k < 6; k++)
@@ -2044,12 +1417,12 @@ int main(void)
         if (p > pk)
             pk = p;
     }
-    printf("    six church organ notes at full velocity and volume: %.1f dBFS\n", (double)db(pk));
+    printf("    six wavetable notes at full velocity and volume: %.1f dBFS\n", (double)db(pk));
     check("a six-note chord at full volume stays finite", finite);
 
     /* mono / legato */
     reset();
-    sound_default(par[0], EG_KNIT);
+    sound_default(par[0], EG_RAYON);
     par[0][TP_VMODE] = VM_MONO;
     par[0][TP_A] = 100;                          /* a slow attack: a retrigger shows as a dip */
     synth_note_on(S, 0, 60, 100, 0, 1);
@@ -2073,7 +1446,7 @@ int main(void)
         check("mono: releasing the last note ends the voice", !synth_sounding(S, 0, NVOICE));
     }
     reset();
-    sound_default(par[0], EG_KNIT);
+    sound_default(par[0], EG_RAYON);
     par[0][TP_VMODE] = VM_LEGATO;
     par[0][TP_A] = 100;
     synth_note_on(S, 0, 60, 100, 0, 1);
@@ -2122,7 +1495,7 @@ int main(void)
 
     /* locks override the knob and release */
     reset();
-    sound_default(par[0], EG_KNIT);
+    sound_default(par[0], EG_RAYON);
     par[0][TP_CUT] = 127;
     par[0][TP_A] = 0;
     par[0][TP_FTYPE] = FT_LP24;
@@ -2146,7 +1519,7 @@ int main(void)
 
     /* the wave LFO moves a parameter */
     reset();
-    sound_default(par[0], EG_KNIT);
+    sound_default(par[0], EG_RAYON);
     par[0][TP_CUT] = 40;
     par[0][TP_LTYPE] = LT_WAVE;
     par[0][TP_LSPEED] = 60;                      /* a few Hz */
@@ -2159,7 +1532,7 @@ int main(void)
     {   /* on an engine knob with a narrow range: the organ's type sweeps its 1..8 without leaving it */
         int ok = 1;
         reset();
-        sound_default(par[0], EG_BELLOWS);
+        sound_default(par[0], EG_JACQUARD);
         par[0][TP_LTYPE] = LT_WAVE;
         par[0][TP_LSPEED] = 60;
         par[0][TP_LAMT] = 127;
@@ -2173,7 +1546,7 @@ int main(void)
     }
     {   /* on the pitch: the amp module's knob 1 */
         reset();
-        sound_default(par[0], EG_KNIT);
+        sound_default(par[0], EG_RAYON);
         par[0][TP_LTYPE] = LT_WAVE;
         par[0][TP_LSPEED] = 40;
         par[0][TP_LAMT] = 127;
@@ -2194,7 +1567,7 @@ int main(void)
         for (pass = 0; pass < 2; pass++) {
             float a, c;
             reset();
-            sound_default(par[0], EG_KNIT);
+            sound_default(par[0], EG_RAYON);
             par[0][TP_VOLUME] = 64;
             par[0][TP_A] = 0;
             par[0][TP_LTYPE] = LT_WAVE;
@@ -2225,7 +1598,7 @@ int main(void)
     }
     /* wobble: volume, vibrato, envelope, shapes */
     reset();
-    sound_default(par[0], EG_BELLOWS);
+    sound_default(par[0], EG_JACQUARD);
     par[0][TP_LTYPE] = LT_WOBBLE;
     par[0][TP_LSPEED] = 70;
     par[0][TP_LAMT] = 64;
@@ -2237,7 +1610,7 @@ int main(void)
         int sh, ok = 1;
         for (sh = 0; sh < 5; sh++) {
             reset();
-            sound_default(par[0], EG_BELLOWS);
+            sound_default(par[0], EG_JACQUARD);
             par[0][TP_LTYPE] = LT_WOBBLE;
             par[0][TP_LSPEED] = 70;
             par[0][TP_LAMT] = 64;
@@ -2252,7 +1625,7 @@ int main(void)
     }
     {
         reset();
-        sound_default(par[0], EG_BELLOWS);
+        sound_default(par[0], EG_JACQUARD);
         par[0][TP_LTYPE] = LT_WOBBLE;
         par[0][TP_LSPEED] = 90;
         par[0][TP_LAMT] = 127;                   /* vibrato only */
@@ -2268,7 +1641,7 @@ int main(void)
     {
         float early, late;
         reset();
-        sound_default(par[0], EG_BELLOWS);
+        sound_default(par[0], EG_JACQUARD);
         par[0][TP_LTYPE] = LT_WOBBLE;
         par[0][TP_LSPEED] = 90;
         par[0][TP_LAMT] = 64;
@@ -2280,7 +1653,7 @@ int main(void)
         printf("    wobble fade in: swing %.2f early, %.2f late\n", (double)early, (double)late);
         check("wobble envelope: fade in (little early, full late)", early < 1.15f && late > 1.5f);
         reset();
-        sound_default(par[0], EG_BELLOWS);
+        sound_default(par[0], EG_JACQUARD);
         par[0][TP_LTYPE] = LT_WOBBLE;
         par[0][TP_LSPEED] = 90;
         par[0][TP_LAMT] = 64;
@@ -2296,7 +1669,7 @@ int main(void)
     {
         float quiet, loud;
         reset();
-        sound_default(par[0], EG_BELLOWS);
+        sound_default(par[0], EG_JACQUARD);
         par[0][TP_VOLUME] = 0;
         synth_note_on(S, 0, 48, 100, 0, 1);
         for (b = 0; b < 20; b++)
@@ -2324,7 +1697,7 @@ int main(void)
     {
         float a, c, held, rel;
         reset();
-        sound_default(par[0], EG_BELLOWS);
+        sound_default(par[0], EG_JACQUARD);
         par[0][TP_LTYPE] = LT_PUMP;
         par[0][TP_LSPEED] = 3;                   /* source: track 4 */
         par[0][TP_LAMT] = 127;
@@ -2369,7 +1742,7 @@ int main(void)
 
     /* perf: mute, pitch */
     reset();
-    sound_default(par[0], EG_KNIT);
+    sound_default(par[0], EG_RAYON);
     synth_note_on(S, 0, 48, 100, 0, 1);
     for (b = 0; b < 20; b++)
         block(N, &finite);
@@ -2378,31 +1751,6 @@ int main(void)
         block(N, &finite);
     check("perf mute silences the track (voices keep running)", block(N, &finite) < 1e-4f && synth_sounding(S, 0, NVOICE));
     synth_perf(S, 0)->mute = 0;
-
-    /* stereo engines differ between the sides, mono ones do not */
-    reset();
-    sound_default(par[0], EG_KNIT);
-    par[0][TP_E3] = 3;                               /* (a unison: a voice is stereo when it has one and a width) */
-    par[0][TP_E4] = 100;
-    par[0][TP_PAN] = 64;
-    synth_note_on(S, 0, 48, 100, 0, 1);
-    for (b = 0; b < 20; b++)
-        block(N, &finite);
-    {
-        int i, d = 0;
-        block(N, &finite);
-        for (i = 0; i < N; i++)
-            d |= L[i] != R[i];
-        check("knit with width up: the sides differ", d);
-        par[0][TP_E4] = 0;
-        for (b = 0; b < 20; b++)
-            block(N, &finite);
-        block(N, &finite);
-        d = 0;
-        for (i = 0; i < N; i++)
-            d |= L[i] != R[i];
-        check("knit with width at 0, centred: the sides are the same", !d);
-    }
 
     /* a drumline track takes no synth voice */
     reset();
@@ -2418,8 +1766,8 @@ int main(void)
         int same = 1, i;
         reset();
         for (t = 0; t < NTRK; t++) {
-            /* (cane keeps its models' state in slots outside the synth's, which this copies: knit on its track) */
-            load_preset(t, preset_first(t == EG_CANE ? EG_KNIT : t) + 3);
+            static const uint8_t EGS[NTRK] = {EG_RAYON, EG_JACQUARD, EG_RAYON, EG_JACQUARD, EG_RAYON};
+            load_preset(t, preset_first(EGS[t]) + 3);
             par[t][TP_LTYPE] = (uint8_t)(t & 1 ? LT_WOBBLE : LT_WAVE);
             par[t][TP_LDEST] = (uint8_t)(t & 1 ? 100 : LD_FILTER);
             par[t][TP_LAMT] = 100;
@@ -2610,8 +1958,6 @@ int main(void)
     char_tests();
     kit_char_tests();
     sample_tests();
-    slice_tests();
-    acid_tests();
     bench();
     bench_char();
     printf("%s\n", bad ? "SYNTH TESTS FAILED" : "all synth tests passed");

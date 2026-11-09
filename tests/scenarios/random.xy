@@ -37,18 +37,18 @@ shot random_pool_dots.png
 tap SEQ
 # harmony: the dots shrink to the conductor's chord (D minor: D F A), held on its keys
 knob 2 brain harmony
-play 9 62 on
-play 9 65 on
-play 9 69 on
+play 6 62 on
+play 6 65 on
+play 6 69 on
 tap SEQ
 key w0 down
 tap SEQ
 key w0 up
 shot random_pool_chord.png
 tap SEQ
-play 9 62 off
-play 9 65 off
-play 9 69 off
+play 6 62 off
+play 6 65 off
+play 6 69 off
 knob 2 brain diatonic
 # steps as active slots: tap two on (with none set, every step plays)
 tapkey w0

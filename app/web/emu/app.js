@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
-// LOOM-8's own part of fm1-base's emulator page (base/web/emu/index.html; fm1-base's build loads it as app_own.js
+// COLD's own part of fm1-base's emulator page (base/web/emu/index.html; fm1-base's build loads it as app_own.js
 // beside the emulator's parts, when the emulator is switched on). It works through the page's own names (KEYMAP,
 // holdDown, turn, knobs, buttons, shortcuts, controls, node): the projects saved by the earlier page, what each
-// control does on hover, and LOOM-8's computer keys: Space PLAY, Enter REC, / SEQ, as everywhere on the page, not
+// control does on hover, and COLD's computer keys: Space PLAY, Enter REC, / SEQ, as everywhere on the page, not
 // only on the panel. A control reached with Tab keeps Space and Enter for itself (it presses that control); one
 // clicked with the mouse or a finger does not, so Space stays PLAY after playing the panel with the mouse.
 
 // the projects the page kept before it was fm1-base's (its own key), moved to fm1-base's page's key once
-const OLD_STORE = "xy-emu-store", STORE = "loom-emu-store";
+const OLD_STORE = "xy-emu-store", STORE = "cold-emu-store";
 function moveStore() {
   try {
     const old = localStorage.getItem(OLD_STORE);
@@ -33,7 +33,7 @@ function tips() {
   }
 }
 
-// the computer's keys: fm1-base's map (white keys Q-I, A-K; black keys 1-0, -; Esc HOME; Z / X octave) and LOOM-8's
+// the computer's keys: fm1-base's map (white keys Q-I, A-K; black keys 1-0, -; Esc HOME; Z / X octave) and COLD's
 const KNOB_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"]);
 function keyboard() {
   const map = { ...KEYMAP, Space: { btn: BTN.PLAY }, Enter: { btn: BTN.REC }, Slash: { btn: BTN.SEQ } };

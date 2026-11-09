@@ -51,18 +51,16 @@ static double run(int e, int nv, int drums, int dynamic, int *k_out)
 {
     int t, b, s, k;
     uint64_t total = 0;
-    for (t = 0; t < NTRK; t++)                   /* knit: track 1 a unison of seven, the others one voice */
+    for (t = 0; t < NTRK; t++)
         sound_default(par[t], e);
-    if (e == EG_KNIT)
-        par[0][TP_E3] = 7;
     synth_init(S, par);
     synth_tempo(S, 120.0f);
-    memset(par[7], 0, NTP);
+    memset(par[NTRK - 1], 0, NTP);
     for (s = 0; s < DL_NSOUND; s++)
         for (k = 0; k < DP_N; k++)
-            par[7][TP_DRUM(s, k)] = DL_DEFAULT_KIT[s][k];
-    par[7][TP_R] = 64;
-    drumline_init(dl, par[7]);
+            par[NTRK - 1][TP_DRUM(s, k)] = DL_DEFAULT_KIT[s][k];
+    par[NTRK - 1][TP_R] = 64;
+    drumline_init(dl, par[NTRK - 1]);
     for (t = 0; t < nv; t++)
         synth_note_on(S, t % 4, 40 + 3 * t, 100, 0, (uint32_t)t + 1);
     for (b = 0; b < 300; b++) {
@@ -96,8 +94,8 @@ int main(void)
     static const int NV[] = {2, 4, 6, 8, 12, 16};
     int d, i, e;
     printf("-- the cores' split: the critical path, instructions a sample (fixed k = 8 -> split_at)\n");
-    for (e = 0; e < 3; e++) {
-        int eng = e == 2 ? EG_RAYON : e ? EG_JACQUARD : EG_KNIT;
+    for (e = 0; e < 2; e++) {
+        int eng = e ? EG_RAYON : EG_JACQUARD;
         for (d = 0; d < 2; d++)
             for (i = 0; i < (int)(sizeof NV / sizeof NV[0]); i++) {
                 int k0, k1;

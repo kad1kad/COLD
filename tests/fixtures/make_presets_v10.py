@@ -25,7 +25,7 @@ for k in range(NKITS):
         img[keys + 7] = 76                              # (0 dB)
     kits += img
 obj1 = struct.pack("<I", 10) + presets + bytes(kits)
-head = struct.pack("<IHBB", 0x42384D4C, 1, len(OBJS), 0) + struct.pack("<I", 0)
+head = struct.pack("<IHBB", 0x42444C43, 1, len(OBJS), 0) + struct.pack("<I", 0)
 img = bytearray(head + struct.pack("<I", zlib.crc32(head)))
 for o in OBJS:
     data = obj1 if o == 1 else b""

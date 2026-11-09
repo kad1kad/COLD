@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
-// The installer's steps for LOOM-8 (app/web/install_app.js on app/web/samples/loom_samples.js, assembled as
+// The installer's steps for COLD (app/web/install_app.js on app/web/samples/loom_samples.js, assembled as
 // tools/make_pages.py assembles them for fm1-base's web/installer.html APP) against a simulated FM-1 on a Web MIDI
 // shaped port, speaking app/samples.c's commands (PING 25, SINFO 15, READ 17, BEGIN 11, WRITE 12, HDR 16, END 13):
-//   1. an old LOOM-8's bank (version 2) with room: nothing asked; after, the user's samples first, kept byte for byte
+//   1. an old COLD's bank (version 2) with room: nothing asked; after, the user's samples first, kept byte for byte
 //      (their checkpoints every 128), then the factory set, marked; user 1 and 2 still theirs
 //   2. no room as they are: asked; "Make room": the 32 kHz one put at 22 kHz, the other kept; it all fits
 //   3. no room even at 11 kHz: asked, "Install without them": nothing sent
-//   4. no LOOM-8 answering before (another firmware, or an old one): looked at after, from the one installed
+//   4. no COLD answering before (another firmware, or an old one): looked at after, from the one installed
 //   5. the factory set already there: nothing asked, nothing sent; "Cancel" before: the install stops (false)
 //   node tests/host/install_web.mjs [PYTHON]
 import { execFileSync } from "node:child_process";
@@ -29,15 +29,15 @@ let bad = 0;
 const check = (what, ok) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) bad++; };
 const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 
-// a simulated FM-1 behind a Web MIDI port pair: the bank (virtual offsets), samples.c's answers; quiet: not LOOM-8
+// a simulated FM-1 behind a Web MIDI port pair: the bank (virtual offsets), samples.c's answers; quiet: not COLD
 class Fake {
   constructor(img) {
     this.bank = new Uint8Array(L.BANK_SIZE).fill(0xFF);
     if (img) this.bank.set(img);
     this.quiet = false; this.sent = 0; this.open = false; this.hdr = null;
     const self = this;
-    this.input = { name: "LOOM-8 FM-1", state: "connected", open: async () => {}, onmidimessage: null };
-    this.output = { name: "LOOM-8 FM-1", open: async () => {}, send(d) { self.recv(d); } };
+    this.input = { name: "COLD FM-1", state: "connected", open: async () => {}, onmidimessage: null };
+    this.output = { name: "COLD FM-1", open: async () => {}, send(d) { self.recv(d); } };
     this.midi = { inputs: new Map([["i", this.input]]), outputs: new Map([["o", this.output]]) };
   }
   count() { const h = L.parseHeader(this.bank.subarray(0, L.BANK_HDR)); return h ? h.count : 0; }
@@ -72,7 +72,7 @@ const ui = (answer) => {
   return u;
 };
 
-// an old LOOM-8's bank: version 2 (a checkpoint every 64), n samples of noise at these rates
+// an old COLD's bank: version 2 (a checkpoint every 64), n samples of noise at these rates
 let seed = 7;
 const rnd = () => { seed = (seed * 1103515245 + 12345) >>> 0; return ((seed >>> 8) / 16777216 - 0.5) * 30000; };
 function oldBank(specs) {
@@ -91,7 +91,7 @@ const run = async (dev, answer, before = true) => {
   return { u, st };
 };
 
-console.log("installer: LOOM-8's sounds into the sample bank");
+console.log("installer: COLD's sounds into the sample bank");
 {
   const img = oldBank([["kick2", 9000, 22050], ["loop", 30000, 16000]]);
   const dev = new Fake(img), was = L.keptOf(img);
@@ -103,7 +103,7 @@ console.log("installer: LOOM-8's sounds into the sample bank");
     same(now[0].adpcm, was[0].adpcm) && same(now[1].adpcm, was[1].adpcm) && same(now[1].ckb, was[1].ckb));
   check(`   then the factory set's ${L.NFENT}, marked, as factory.bin has them`,
     h.count === 2 + L.NFENT && now.slice(2).every(L.isFactory) &&
-    same(now[2].adpcm, L.keptOf(FACTORY)[0].adpcm) && u.said.at(-1) === "LOOM-8 is installed, with its sounds.");
+    same(now[2].adpcm, L.keptOf(FACTORY)[0].adpcm) && u.said.at(-1) === "COLD is installed, with its sounds.");
 }
 {
   const img = oldBank([["big", 230000, 32000], ["small", 20000, 16000]]);   // 126 + 11 KB: + 86 does not fit
@@ -129,7 +129,7 @@ console.log("installer: LOOM-8's sounds into the sample bank");
   const dev = new Fake(img);
   const { u } = await run(dev, "cancel", false);
   const now = L.keptOf(dev.image());
-  check("4. no LOOM-8 answering before: looked at after, the set added", u.asked.length === 0 && dev.sent === 1 &&
+  check("4. no COLD answering before: looked at after, the set added", u.asked.length === 0 && dev.sent === 1 &&
     now[0].name === "kick2" && now.length === 1 + L.NFENT);
 }
 {

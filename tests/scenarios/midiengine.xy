@@ -62,8 +62,8 @@ expect_out USB B2 0A 1E
 expect_out USB 92 3E 64
 tap PLAY
 wait 50
-# back to a sound: knit plays again
-knob 3 engine knit
+# back to a sound: rayon plays again
+knob 3 engine rayon
 play 3 60 on
 wait 20
 expect voices 1

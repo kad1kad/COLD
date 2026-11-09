@@ -13,10 +13,10 @@ The build (fm1-base's `tools/build.py`, run by `./build.sh`, driven by `app/fm1.
 
 | File | What |
 | --- | --- |
-| `loom.bin` | the firmware app |
+| `cold.bin` | the firmware app |
 | `loader/ota.bin` | the update loader (felucca-bsp's) |
-| `loom.fwsc` | the installable package (app + loader) |
-| `loom-res.bin` | the resource region: the 909 cymbals' samples, written after the firmware (fm1-base `device/res.c`) |
+| `cold.fwsc` | the installable package (app + loader) |
+| `cold-res.bin` | the resource region: the 909 cymbals' samples, written after the firmware (fm1-base `device/res.c`) |
 
 ## Prerequisites (macOS)
 
@@ -48,14 +48,14 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 ## Build
 
 ```
-./build.sh                    # the firmware: app/build/loom.fwsc
-./build.sh --host             # the host simulator: app/build/host/loom_host
+./build.sh                    # the firmware: app/build/cold.fwsc
+./build.sh --host             # the host simulator: app/build/host/cold_host
 ./build.sh --web              # the browser emulator: app/build/emu/ (fm1-base's page; LOOM-8's bits: app/web/emu/)
 ```
 
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
-`./build.sh --release 0.1` makes a release build: the package is `app/build/loom-0.1.fwsc`, its identity
-FM-1_10XXYYZZ (a dev build's is FM-1_1000).
+`./build.sh --release 0.1` makes a release build: the package is `app/build/cold-0.1.fwsc`, its identity
+FM-1_44XXYYZZ (a dev build's is FM-1_4400).
 
 The build generates `app/build/gen/` (fm1-base's fonts for its own screens, LOOM-8's fonts, the wavetables, the
 factory samples, the screen reader's words link, this build's number). It runs LOOM-8's size pass
@@ -75,11 +75,11 @@ Runs, on the build machine: the units' own tests (the synth, the drumline, the F
 that must not move a sample, then the tests compare); the user sample bank's tool (`tests/host/bank_test.py`: its
 layout over the three flash windows, the rates, the bounds) and an upload played through the app
 (`tests/scenarios/upload.xy`); fm1-base's update-path tests
-against `app/build/loom.fwsc`; the browser build; and the whole app in fm1-base's simulator
+against `app/build/cold.fwsc`; the browser build; and the whole app in fm1-base's simulator
 (`tests/scenarios/*.xy`, backup and restore among them), with its screenshots and audio in `app/build/scenarios/`
 and the layout audit. Silent: the audio goes to WAV files. fm1-base's own tests: `base/tests/run_tests.sh`.
 
-`app/build/host/loom_host SCRIPT OUTDIR` runs one script: fm1-base's commands are at the top of
+`app/build/host/cold_host SCRIPT OUTDIR` runs one script: fm1-base's commands are at the top of
 `base/host/plat_host.c`, LOOM-8's own at the top of `app/host.c`. `tools/gen_screens.sh` makes the manual's
 screenshots (`tools/manual_screens.xy`).
 
@@ -88,18 +88,18 @@ screenshots (`tools/manual_screens.xy`).
 From the command line (needs `pip3 install mido python-rtmidi`):
 
 ```
-python3 base/tools/fm1_install.py app/build/loom.fwsc
+python3 base/tools/fm1_install.py app/build/cold.fwsc
 python3 base/tools/fm1_install.py --info     # identity of the connected FM-1
 ```
 
-After the firmware it writes `loom-res.bin` from beside the package (the 909 cymbals; a few seconds, and at once when
-the FM-1 has them already); `base/tools/fm1_resources.py app/build/loom-res.bin` writes it alone.
+After the firmware it writes `cold-res.bin` from beside the package (the 909 cymbals; a few seconds, and at once when
+the FM-1 has them already); `base/tools/fm1_resources.py app/build/cold-res.bin` writes it alone.
 
 Installing firmware is at your own risk. Hold OCT− and OCT+ for 5 seconds for the update mode. Two failed starts
 in a row bring up a safe mode with USB on; the web installer can put M-VAVE's firmware back.
 `base/tools/fm1_remote.py` drives an FM-1 over USB and reads its screen, crash record and log.
 
-Backup and restore of the projects and the user presets: `python3 base/tools/fm1_backup.py backup FILE --magic LM8B`
+Backup and restore of the projects and the user presets: `python3 base/tools/fm1_backup.py backup FILE --magic CLDB`
 and `restore FILE` (or the site's Backup page). The user sample bank is not in a backup: `tools/loom_samples.py`
 loads it from the WAV files. The bank: 216 KB of flash in three windows (`app/dsp/sample.h`: 0xC1000..0xDBFFF, and
 fm1-base's PLAT_XDATA1 0xE5000..0xFBFFF and PLAT_XDATA0 0x93000..0x96FFF), which nothing else writes: not the store
@@ -113,7 +113,7 @@ A release is built on GitHub from its tag, so anyone can check that the package 
 [`zvenson/fm1-build` at `v1`](https://github.com/zvenson/fm1-build/tree/v1) (as X0X and Melodee do). The builder
 checks out the tagged commit, installs JieLi's Linux toolchain and the AC79 SDK at its fixed tag, runs
 `./build.sh --release X.Y` (with fm1-base and felucca-bsp at the commits this one links) and `tests/run_tests.sh`
-(a failing test stops the release), then signs build provenance for `loom-X.Y.fwsc` and `loom-X.Y-app.bin`. The
+(a failing test stops the release), then signs build provenance for `cold-X.Y.fwsc` and `cold-X.Y-app.bin`. The
 Firmware Hub shows such packages as built from source.
 
 1. Write the notes first, as a draft: `gh release create vX.Y --draft --title "LOOM-8 X.Y" --notes-file NOTES.md`
@@ -142,5 +142,5 @@ gh attestation verify "build/verify/loom-${tag#v}.fwsc" --repo "$repo" \
 The same checks the `-app.bin`. `SHA256SUMS` comes with the downloads; a checksum alone proves nothing about where a
 package was built.
 
-A local release build (`./build.sh --release X.Y`, package `app/build/loom-X.Y.fwsc`; its identity FM-1_10XXYYZZ is
+A local release build (`./build.sh --release X.Y`, package `app/build/cold-X.Y.fwsc`; its identity FM-1_44XXYYZZ is
 what the installer checks) is still how to try one on the FM-1 before tagging.

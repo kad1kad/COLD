@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 #define SY_SR 44100.0f
-#define NTRK 8                        /* instrument tracks (seq/pattern.h agrees) */
+#define NTRK 5                        /* instrument tracks (seq/pattern.h agrees) */
 #define SY_CHUNK 64                   /* control rate: envelopes, LFO, glides, locks */
 #define NVOICE 16                     /* synth voices, all tracks */
 #define NVOICE_TRK 6                  /* the most one track takes */
@@ -30,32 +30,19 @@
 /* EG_MIDI plays nothing here: the track's notes go out on its own channel (always: its MIDI OUT does not apply),
  * and its eight knobs (TP_E1..E4, TP_X1..X4) each send a CC on that channel when they move (by hand, a lock,
  * automation); the knobs' CC numbers in TP_A..TP_R and TP_FA..TP_FR (no envelope on such a track): MIDI_CC_P */
-/* EG_ACID (2026-10-30): a TB-303, X0X's (dsp/bass303.c, GPL-3.0-only: Open303 by Robin Schmidt, MIT, with jc303's
- * Devilfish ranges and dm-Rat's RAT drive), whole: its own oscillator, filter, envelopes, accent and slide. One voice a
- * track (mono whatever the Play page says), at most NACID of them (each a bass303_t in RAM). Its track's Filter page is
- * the 303's cutoff, resonance, env mod and decay (TP_CUT, TP_RES, TP_FENV, TP_KTRK), the Engine page wave, accent,
- * slide time, accent decay, the second page drive and its type (off, soft, rat); the voice's own filter and
- * envelopes are left out (the character stage, the LFO, the sends and the mix are as on any track). A note of
- * velocity ACID_ACCENT or more is accented; a note that starts while the last one is still held slides to it, and so
- * does a note with a glide (a step's glide trick, the arp's glide) after a short one: on the same pitch, a tie. */
-enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE, EG_MIDI,
-       EG_ACID, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
-                                                      * goes last) */
-#define NACID 2
-#define ACID_ACCENT 112
-/* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
- * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices
- * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */
-#define NCANE 6
-#define NVOILE 4
-#define CN_SLOTS 4
-#define CN_LEN 1536
-static inline int eg_synth(int e) { return e >= 0 && e < NENGINE && e != EG_DRUMLINE && e != EG_MIDI; }   /* a voice
-                                                                                                         * engine */
+/* The engine numbers are saved in projects, so a cut engine keeps its slot (2026-11: knit 0, bellows 3, cane 4, voile 5,
+ * slice 7 and acid 10 are retired: their code is gone). A project that has one plays rayon instead (project.c
+ * settings_valid). A new engine goes last. */
+enum { EG_RETIRED0, EG_RAYON, EG_JACQUARD, EG_RETIRED3, EG_RETIRED4, EG_RETIRED5, EG_SAMPLE, EG_RETIRED7, EG_DRUMLINE,
+       EG_MIDI, EG_RETIRED10, NENGINE };
+static inline int eg_retired(int e) { return e == EG_RETIRED0 || e == EG_RETIRED3 || e == EG_RETIRED4 || e == EG_RETIRED5 ||
+                                           e == EG_RETIRED7 || e == EG_RETIRED10; }
+/* the engines the UI offers (the engine picker): rayon, jacquard, the sample player, the kit and MIDI out. FMini joins in
+ * Phase 2 */
+static inline int eg_offered(int e) { return e >= 0 && e < NENGINE && !eg_retired(e); }
+static inline int eg_synth(int e) { return eg_offered(e) && e != EG_DRUMLINE && e != EG_MIDI; }   /* a voice engine */
 enum { SM_ONESHOT, SM_LOOP, SM_REVERSE, SM_PINGPONG, NSM };   /* the sample engine's modes (TP_E4) */
-#define SL_NCOUNT 4                                  /* the slice engine's counts: 4 << TP_E2 */
-static inline int sl_count(int v) { return 4 << (v < 0 ? 0 : v >= SL_NCOUNT ? SL_NCOUNT - 1 : v); }
-extern const char *const EG_NAME[NENGINE];         /* "knit", "rayon", ... "slice", "kit" */
+extern const char *const EG_NAME[NENGINE];         /* "rayon", "jacquard", "sample", "kit", "midi"; retired: "-" */
 extern const char *const EG_KNOB[NENGINE][4];      /* each engine's four knob names */
 
 /* a drumline key: its model (drumline.h DM_*), the model's four knobs (names per model: DM_KNOB), then
@@ -236,9 +223,6 @@ typedef struct {
     uint8_t type, cin_type;
 } chbus_t;
 void char_bus(chbus_t *c, const uint8_t *par, float *l, float *r, int n);
-/* the Engine page's picture of the organ: the six drawbars' levels (16' 8' 4' 2 2/3' 2' 1 1/3', 0..1, the loudest 1) that
- * stops and pedal set (organ_prep's registration) */
-void organ_bars(const uint8_t *par, float bars[6]);
 /* a track's level (TP_LEVEL) as a gain: a fader's law, cubic (60 dB over 0..100: half way -18 dB), 100 = 0 dB,
  * 127 = +6.2 dB, 0 = off. The drums and the FX returns take it as is; the synth's voices with 100/127 under it
  * (their headroom: synth.c) */
@@ -320,11 +304,7 @@ int synth_order(const synth_t *s, int8_t *ord);   /* the cores' queue (engine.c)
 void synth_idle(synth_t *s, const int8_t *ord, int nord, uint32_t n);   /* the voices not in it moved n frames on */
 int synth_sounding(const synth_t *s, int v0, int v1);          /* a voice in the range is sounding */
 int synth_voices_used(const synth_t *s);
-/* the slice engine's newest playing voice on a track (the picture): its slice (0-based) and the position in
- * the sample; 0 when none plays. Called from the main loop: a racy read of the voices, for the screen only */
-int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos);
 void synth_limit(synth_t *s, int max_voices);                  /* the overload guard: fewer voices */
-void synth_acid_lite(synth_t *s, int on);                      /* and before it: the 303s without oversampling */
 int synth_lock_value(const synth_t *s, int trk, int param);   /* a lock's value now, -1 none (the UI's dot) */
 void synth_load_hint(synth_t *s, uint32_t pct);              /* the last block's load, %: the note-start check */
 extern uint32_t synth_load_steals;                            /* notes that took a sounding voice by the load check */

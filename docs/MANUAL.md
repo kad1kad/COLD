@@ -1547,7 +1547,7 @@ no), and only while stopped. Once you say yes, the page sends the samples too. T
 the sound stops while they are written. If the backup was made before the page kept samples, your samples stay as
 they are. To do the same from a terminal, run these in the firmware's folder:
 
-- projects and presets: `python3 base/tools/fm1_backup.py backup FILE --magic LM8B` and `restore FILE`
+- projects and presets: `python3 base/tools/fm1_backup.py backup FILE --magic CLDB` and `restore FILE`
 - samples: `python3 tools/loom_samples.py backup FILE` and `restore FILE` (its `restore` also takes the backup
   page's file)
 

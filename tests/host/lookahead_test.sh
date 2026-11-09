@@ -8,7 +8,7 @@
 # recording is there to compare). Needs the host simulator (./build.sh --host).
 set -eu
 cd "$(dirname "$0")/../.."
-H=app/build/host/loom_host
+H=app/build/host/cold_host
 D=build/host/lookahead
 rm -rf "$D" && mkdir -p "$D/off" "$D/on" "$D/norec"
 for m in off on norec; do

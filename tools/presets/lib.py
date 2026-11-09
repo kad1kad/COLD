@@ -12,7 +12,7 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
                                                 ("synth", "envelope", "filter", "voice", and "... free"), a number
                                                 for wobble (its volume amount) and pump (its hold)
     char=None | (type, amount, tone, mix),     type: drive fold crush ring tilt tape sampler
-    x=(x1, x2, x3, x4),                         the engine's second page (knit's osc 2 .., rayon's fall ..)
+    x=(x1, x2, x3, x4),                         the engine's second page (rayon's fall ..)
     octave=None,                                -2 .. +2; None: by the role (a bass -2: on the FM-1's middle keys,
                                                 F3 .. G5, it plays around C2; at -1 most had nothing under 100 Hz)
     genres=())                                  what it is for (lofi, synthpop, dnb, house, garage ...): the
@@ -26,18 +26,15 @@ files list them (gen_presets.py FILES); an engine's first preset is its sound in
 
 ROLES = ["bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice", "chord", "fx", "drum",
          "loop"]                                      # synth.h RL_*, in order
-ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "midi", "acid"]   # synth.h EG_*, in order
-KNOBS = {"knit": ["wave", "detune", "voices", "width"], "rayon": ["bright", "ratio", "edge", "tine"],
-         "jacquard": ["table", "scan", "bend", "ripple"], "bellows": ["stops", "pedal", "rotor", "rate"],
-         "cane": ["model", "timbre", "color", "damp"], "voile": ["model", "timbre", "color", "breath"],
-         "sample": ["sample", "start", "length", "mode"], "slice": ["sample", "slices", "pitch", "gate"],
-         "acid": ["wave", "accent", "slide", "tune"]}
+ENGINES = ["rayon", "jacquard", "sample", "kit", "midi"]   # the engines with presets or a kit/MIDI slot, in synth.h EG_* order (knit, bellows, cane, voile, slice and acid are retired)
+KNOBS = {"rayon": ["bright", "ratio", "edge", "tine"], "jacquard": ["table", "scan", "bend", "ripple"],
+         "sample": ["sample", "start", "length", "mode"]}
 MODES = ["poly", "mono", "legato"]                    # VM_*
 FILTERS = ["lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"]   # FT_*
 LFOS = ["off", "wave", "wobble", "drift", "pump"]    # LT_*
 DESTS = ["synth", "envelope", "filter", "voice", "synth free", "envelope free", "filter free", "voice free"]   # LD_*
 CHARS = ["off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"]   # CT_*
-X_DEF = {"knit": (64, 0, 0, 0), "acid": (0, 1, 27, 0)}   # the engines' second pages as sound_default leaves them
+X_DEF = {}   # the engines' second pages as sound_default leaves them (none differ now)
 NOLFO = ("off", 3, 64, "filter", 0, 1)
 NOCHAR = ("off", 64, 64, 127)
 

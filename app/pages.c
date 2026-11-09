@@ -21,16 +21,13 @@ typedef struct {
 static const theme_t THEMES[] = {
     {"tape deck", RGB(24, 18, 14), RGB(44, 34, 26), RGB(70, 56, 42), RGB(74, 60, 46), RGB(120, 100, 80),
      RGB(190, 170, 140), RGB(244, 230, 200), RGB(150, 130, 104), RGB(230, 70, 40), RGB(240, 220, 180),
-     {RGB(230, 180, 50), RGB(214, 96, 48), RGB(160, 170, 70), RGB(70, 170, 160), RGB(110, 150, 200), RGB(180, 110, 150),
-      RGB(210, 170, 120), RGB(150, 190, 150)}, 6, 9},
+     {RGB(230, 180, 50), RGB(214, 96, 48), RGB(160, 170, 70), RGB(70, 170, 160), RGB(110, 150, 200)}, 6, 9},
     {"blueprint", RGB(16, 48, 104), RGB(24, 62, 128), RGB(40, 84, 156), RGB(60, 100, 170), RGB(110, 140, 200),
      RGB(170, 195, 235), RGB(240, 246, 255), RGB(130, 160, 215), RGB(255, 110, 90), RGB(255, 255, 255),
-     {RGB(255, 150, 190), RGB(120, 240, 230), RGB(255, 200, 80), RGB(180, 240, 120), RGB(255, 170, 110),
-      RGB(210, 180, 255), RGB(240, 120, 120), RGB(200, 230, 200)}, 7, 11},
+     {RGB(255, 150, 190), RGB(120, 240, 230), RGB(255, 200, 80), RGB(180, 240, 120), RGB(255, 170, 110)}, 7, 11},
     {"b/w", RGB(0, 0, 0), RGB(30, 30, 34), RGB(58, 58, 64), RGB(60, 60, 66), RGB(96, 96, 102),
      RGB(150, 150, 156), RGB(235, 235, 238), RGB(130, 130, 138), RGB(232, 44, 38), RGB(215, 215, 220),
-     {RGB(255, 92, 170), RGB(40, 204, 192), RGB(244, 200, 60), RGB(104, 152, 255), RGB(255, 136, 64),
-      RGB(110, 216, 110), RGB(178, 136, 255), RGB(214, 176, 136)}, 6, 9},
+     {RGB(255, 92, 170), RGB(40, 204, 192), RGB(244, 200, 60), RGB(104, 152, 255), RGB(255, 136, 64)}, 6, 9},
 };
 #define NTHEMES (sizeof THEMES / sizeof THEMES[0])
 #define THEME_BW 2
@@ -101,11 +98,11 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * track: Engine, Play, Play 2 (the octave), then Sub where the engine has a second page of knobs (TP_X1..X4: knit's
  * oscillator 2, level, sub, noise; rayon's fall); a kit or an FX track Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
-       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
+       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
        P_STATUS, NPAGES };
 static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Envelope",
                                               "Filter", "Filter env", "Kit filter", "Character", "Sends", "FX I",
-                                              "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
+                                              "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Mix",
                                               "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"};
 static char *s_cat(char *b, const char *s);
 static char *num_s(uint32_t v, char *b);
@@ -136,7 +133,7 @@ static uint32_t glfo_route(void)                 /* the tracks it moves: bit t *
 static int mst_base(int p) { return p == P_MASTER ? MS_EQ_LO : p == P_MASTER2 ? MS_CTYPE : MS_PERC; }   /* its first knob */
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
     {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 4}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 5},
-    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 7}};
+    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 3}, {B_GLO, P_MIX, 7}};
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
 static int page_group(int p)
 {
@@ -149,9 +146,9 @@ static int group_n(int g);                           /* the pages a button has n
 static const char *const BTN_LABEL[NB] = {"FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HOME", "SAVE", "ARP", "SEQ",
                                           "PLAY", "REC", "OCT-", "OCT+"};
 
-/* the tracks: 1-8, then the aux tracks (the tag's short names, the pages' long ones) */
-static const char *const TRACK_NAME[NALLTRK] = {"T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "COND", "THROW",
-                                                "FX I", "FX II", "WEAVE"};
+/* the tracks: 1-5, then the aux tracks (the tag's short names, the pages' long ones) */
+static const char *const TRACK_NAME[NALLTRK] = {"T1", "T2", "T3", "T4", "T5", "COND", "THROW",
+                                                "FX I", "FX II"};
 static const char *const NOTE_NAME[12] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
 /* the step components (SC_*: the OP-XY's 14, on the white keys with HOME and a step held), their letter on
  * the grid and their name */
@@ -190,7 +187,7 @@ static const uint8_t WHITE_K[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21
 static const uint8_t BLACK_K[11] = {1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25};
 #define KEY_BASE 53                                  /* F3 at octave 0 */
 enum { KM_NONE, KM_PLAY, KM_STEP, KM_SCENE, KM_MUTE, KM_PUNCH, KM_BRAIN, KM_SOUND,
-       KM_TRACK, KM_SAVE, KM_SOLO, KM_SCALE, KM_ROUTE, KM_STEPSOUND, KM_IDLE, KM_WEAVE, KM_BARK,
+       KM_TRACK, KM_SAVE, KM_SOLO, KM_SCALE, KM_ROUTE, KM_STEPSOUND, KM_IDLE, KM_BARK,
        KM_STEPCHORD };   /* KM_IDLE: does nothing */   /* what a held key does */
 
 /* the input's and the screen's state */
@@ -198,7 +195,7 @@ static struct {
     uint32_t btn, keys, btn_used, btn_t[NB];
     uint32_t enc_t[NE];
     uint32_t act_t;
-    char msg[2][32];                             /* (the second part up to 31: "no weave set: its ARP, Weave") */
+    char msg[2][32];                             /* (the second part up to 31) */
     uint32_t msg_until;
     uint8_t msg_kind, msg_no;
     int8_t touched;
@@ -238,9 +235,6 @@ static struct {
                                                       * pool (pattern.h LANE_POOL), not a step's chord */
     uint8_t chord_down;                              /* chord mode: the chord's keys still down (0: the next key
                                                       * starts a fresh chord, replacing the held steps' notes) */
-    uint16_t wv_held, wv_latched;                    /* the WEAVE track's keys: the tracks woven now (seq.wv_live) */
-    uint16_t wv_last;                                /* the tracks last woven by a key: what a tapped WEAVE step takes */
-    uint8_t wv_step;                                 /* WEAVE's Steps: the step held (0xFF none) */
     uint8_t lockpg;                                  /* a step held + EDIT / ENV / FX / LFO: the lock editor's page + 1 */
     uint8_t cursor;                                  /* step record: the step the keys write */
     uint8_t rec_armed;                               /* REC tapped while stopped: step record */
@@ -258,7 +252,7 @@ static struct {
                                                       * let go (a double tap) */
     uint32_t solo_tap_t;
     uint16_t preset_i, pick_preset;               /* (more than 255 presets and user slots) */
-    uint8_t pick_engine, pick_slot, pick_fx, pick_weave, pick_save;   /* (pick_save: SAVE TO's slot) */
+    uint8_t pick_engine, pick_slot, pick_fx, pick_save;   /* (pick_save: SAVE TO's slot) */
     uint8_t pick_kit, pick_kslot;                    /* a kit track's KIT (0..3 factory, 4.. user) and SAVE KIT */
     uint8_t pick_bt;                                 /* Bluetooth audio's FORGET: the remembered device */
     uint8_t pick_clear, pick_paste;
@@ -280,7 +274,7 @@ enum { LK_KNOB, LK_MORE, LK_ACTION, LK_PICK, LK_NOTE, LK_HEAD };   /* LK_NOTE: a
 enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_ROT_FWD, A_ROT_BACK, A_DUP_BAR,
        A_ENGINE, A_PRESET, A_SCRAMBLE, A_SAVE_PRESET, A_INIT, A_FOLLOW, A_INSERT_SLOT, A_DELETE_SLOT, A_CLEAR_SONG,
        A_PLAY_SONG, A_LOAD_PROJ, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
-       A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
+       A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_THEME, A_PUMP_BY, A_PUMP_REL,
        A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_OUT, A_LOOP_FREE, A_COPY_BAR,
        A_COPY_STEP, A_PASTE_BAR, A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, A_CLEAR_STEP_LOCKS, A_CC_OUT, A_SCENES_OUT,
        A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_MIDI, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
@@ -292,7 +286,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
     "INSERT SLOT", "DELETE SLOT", "CLEAR SONG", "PLAY SONG", "LOAD PROJECT", "NEW PROJECT", "USB AUDIO", "CLEAR SCENE",
     "ALL NOTES OFF", "EFFECT", "REMOVE", "COUNT-IN", "PLAY MODE", "FILTER TYPE", "HIGH-PASS", "LOW-PASS",
-    "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "MASTER LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
+    "TO FX II", "THEME", "PUMP BY", "RELEASE", "ACCENT", "MASTER LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
     "RANDOMIZE PRESETS", "MIDI OUT", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC",
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
@@ -315,8 +309,6 @@ static int pick_sets(int a)
 /* a MIDI track's eight rows of A_MIDI_CC: each knob's CC (ui.c list_midi_knob reads the digit back) */
 static const char *const MIDI_CC_ROW[8] = {"KNOB 1 CC", "KNOB 2 CC", "KNOB 3 CC", "KNOB 4 CC", "KNOB 5 CC",
                                            "KNOB 6 CC", "KNOB 7 CC", "KNOB 8 CC"};
-/* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
-static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
 #define LIST_ROWS 40                  /* (HOME's, EDIT's: their pages' knobs, their actions, the sections' names) */
 #define LIST_SHOWN 10                 /* rows of LIST_RH on the screen (a section's name is LIST_HH) */
 #define LIST_RH (LARGE ? 26 : 20)     /* (large type: taller rows, about seven on the screen) */
@@ -328,7 +320,7 @@ static struct {
 } lst;
 
 /* the undo: one stage, whatever was changed last (HOME + REC swaps it back, HOME + PLAY swaps again: redo): a
- * pattern with its locks, a track's sound (or T2-T8 at once), the master, or the arrangement (song, scenes, weave) */
+ * pattern with its locks, a track's sound (or T2-T8 at once), the master, or the arrangement (song, scenes) */
 enum { U_PAT, U_SOUND, U_MASTER, U_ARR };
 #define UNDO_LANES 13                     /* (a pattern's 12 locks and its random pool) */
 static struct {
@@ -338,7 +330,7 @@ static struct {
         struct { tpat_t pat; lane_t lane[UNDO_LANES]; } p;
         trk_t s[NTRK - 1];
         uint8_t master[NMS];
-        struct { song_t song; scene_t scene[NSCENE]; wvpat_t weave[NPATT]; } a;
+        struct { song_t song; scene_t scene[NSCENE]; } a;
     } u;
 } undo PLAT_POOL;
 enum { CK_PAT, CK_BAR, CK_STEP };
@@ -603,8 +595,6 @@ static int steps_page(int p) { return p == P_STEPS || p == P_BAR; }   /* SEQ's p
 static int is_drum(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_DRUMLINE; }
 static int is_midi(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_MIDI; }   /* (no sound: notes and CCs
                                                                                          * out, synth.h EG_MIDI) */
-static int is_acid(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_ACID; }   /* (its 303's own envelope:
-                                                                                         * no Filter env page) */
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
 static const char *page_name_of(int p, int trk)
 {
@@ -614,8 +604,6 @@ static const char *page_name_of(int p, int trk)
         return "Kit env";
     if (is_drum(trk) && p == P_PLAY2)
         return "Sends";
-    if (trk == AUX_WEAVE && p == P_ENGINE)
-        return "Weave";
     if (trk == AUX_BRAIN && p == P_SUB)
         return "Follow";
     if (trk < NTRK && !is_drum(trk) && !is_aux(trk) && p == P_PLAYERS3 && proj.trk[trk].par[TP_PLAYER] % NPL == PL_RAND)
@@ -689,27 +677,24 @@ static int kit_x_page(int t)                         /* a kit whose key shown ha
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
-    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
+    return e == EG_RAYON || e == EG_MIDI || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
                                                                                      * sample's loop page: looping) */
            kit_x_page(t);
 }
 static int group_n(int g)
 {
     int trk = sel_trk(), b = PAGE_BTN[g].btn;
-    if (b == B_SEQ && trk == AUX_WEAVE)
-        return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* (grp_page: the conductor's Sub third; a kit, an FX track: two) */
-        return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
+        return trk == AUX_PUNCH ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
              : x_page(trk) ? 4 : 3;      /* (a kit: Engine, Key, Sends: the key's own; Engine 2 after Engine when the
                                           * key's model has eight knobs) */
-    if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
-        return is_aux(trk) ? 1
-             : is_drum(trk) || pl_type(trk) == PL_OFF ? 2
-             : pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? 4 : 3;
+    if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's) */
+        return is_aux(trk) || is_drum(trk) || pl_type(trk) == PL_OFF ? 1
+             : pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? 3 : 2;
     if (b == B_ENV)
-        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : is_acid(trk) ? 2 : 3;   /* a kit: the key's envelope, filter; the
+        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : 3;   /* a kit: the key's envelope, filter; the
                                                            * kit's envelope, filter (a MIDI track: none, page_button
-                                                           * stays; acid: its 303's envelope and filter) */
+                                                           * stays) */
     if (b == B_LFO && is_midi(trk))
         return 1;
     if (b == B_FX && is_midi(trk))
@@ -718,14 +703,8 @@ static int group_n(int g)
         return DEBUG_BUILD ? 7 : 6;                  /* Debug last, in a debug build only */
     return PAGE_BTN[g].n;
 }
-/* a button's i-th page now (ARP's depend on the player: the arp has Hold before Weave; the conductor and the
- * throws only Weave), and a page's place among them (-1: not one of them now) */
-/* a track's weave (its settings' rsv[0..2]): the track woven in + 1 (0: none), its pattern, the rule */
-static int wv_from(int t) { return t < NSEQT && proj.trk[t].rsv[0] <= NSEQT ? proj.trk[t].rsv[0] : 0; }
-static int wv_pat(int t) { return proj.trk[t].rsv[1] % NPATT; }
-static int wv_rule(int t) { return proj.trk[t].rsv[2] % NWV; }
-static int wv_cued(int t) { return proj.trk[t].rsv[3] & 1u; }   /* PLAYS: 0 always, 1 only on the WEAVE track */
-static int wv_kind(int t) { return t == AUX_PUNCH ? WK_FX : is_drum(t) ? WK_KIT : WK_MEL; }
+/* a button's i-th page now (ARP's depend on the player: the arp has Hold, strum and the others two), and a page's
+ * place among them (-1: not one of them now) */
 static int grp_page(int g, int i)
 {
     if ((PAGE_BTN[g].btn == B_ENV || PAGE_BTN[g].btn == B_LFO) && is_midi(sel_trk()))
@@ -741,14 +720,11 @@ static int grp_page(int g, int i)
     if (PAGE_BTN[g].btn == B_FX && is_midi(sel_trk()))
         return P_FX1 + i % 3;                        /* (a MIDI track: no sound for Character or Sends) */
     if (PAGE_BTN[g].btn == B_ARP) {
-        static const uint8_t ARPP[4] = {P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE};
-        static const uint8_t OTHER[3] = {P_PLAYERS, P_PLAYERS2, P_WEAVE};
+        static const uint8_t ARPP[3] = {P_PLAYERS, P_PLAYERS2, P_PLAYERS3};
         int trk = sel_trk();
-        if (is_aux(trk))
-            return P_WEAVE;
-        if (is_drum(trk) || pl_type(trk) == PL_OFF)
-            return i & 1 ? P_WEAVE : P_PLAYERS;      /* (a kit, or no player: its page shows it off, then Weave) */
-        return pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? ARPP[i & 3] : OTHER[(i % 3 + 3) % 3];
+        if (is_aux(trk) || is_drum(trk) || pl_type(trk) == PL_OFF)
+            return P_PLAYERS;                        /* (a kit, or no player: its page shows it off) */
+        return pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? ARPP[(i % 3 + 3) % 3] : ARPP[(i % 2 + 2) % 2];
     }
     return PAGE_BTN[g].first + i;
 }
@@ -774,8 +750,8 @@ static int tp_page_param(int p, int k, int trk)
         {TP_E1, TP_E2, TP_E3, TP_E4}, {TP_E1, TP_E2, TP_E3, TP_E4}, {-1, -1, -1, -1},
         {TP_LTYPE, TP_LSPEED, TP_LAMT, TP_LDEST},
         {TP_LX, TP_LX2, -1, -1}, {TP_PLAYER, TP_P1, TP_P2, TP_P3}, {TP_AP1, TP_AP2, TP_AP3, TP_AP4},
-        {TP_P4, -1, -1, -1}, {-1, -1, -1, -1}, {TP_SEND1, TP_SEND2, TP_PAN, TP_LEVEL}};
-    if (p < P_ENGINE || p > P_MIX || p == P_THROWS || p == P_WEAVE || k < 0 || k > 3)
+        {TP_P4, -1, -1, -1}, {TP_SEND1, TP_SEND2, TP_PAN, TP_LEVEL}};
+    if (p < P_ENGINE || p > P_MIX || p == P_THROWS || k < 0 || k > 3)
         return -1;
     if (fx_page(p))                                  /* (the effect tracks' own knobs, whatever trk is) */
         return M[p - P_ENGINE][k];
@@ -790,7 +766,7 @@ static int tp_page_param(int p, int k, int trk)
         if (trk == AUX_BRAIN && (p == P_ENGINE || p == P_SUB))   /* key, scale, link; the Follow page: its track */
             return p == P_SUB ? (k ? -1 : TP_E1) : k < 3 ? TP_E2 + k : -1;
         if (p == P_ENGINE)
-            return (trk == AUX_PUNCH || trk == AUX_WEAVE) && k ? -1 : TP_E1 + k;
+            return trk == AUX_PUNCH && k ? -1 : TP_E1 + k;
         if (p == P_PLAY && is_fx(trk)) {             /* an FX track's page 2: high-pass, low-pass, the feed into FX II,
                                                       * a delay's PING WIDTH */
             static const int8_t F2[4] = {TP_FENV, TP_CUT, TP_SEND2, TP_FX_WIDTH};
@@ -825,8 +801,6 @@ static int tp_page_param(int p, int k, int trk)
     }
     if (p == P_SUB && !x_page(trk))
         return -1;
-    if (p == P_SUB && k == 0 && home_held() && proj.trk[trk].par[TP_ENGINE] == EG_KNIT)
-        return TP_O2FINE;                            /* knit's osc 2 with HOME held: its fine tune, in cents */
     if (is_drum(trk) && (p == P_PLAYERS || p == P_PLAYERS2 || p == P_PLAYERS3))
         return -1;                                   /* a kit: no player (its page shows it off) */
     if (pl_type(trk) == PL_RAND) {                  /* random: P1..P3, AP1..AP4, octave */
@@ -925,11 +899,8 @@ static int hdr_meter(int trk)
     uint32_t now = plat_ms(), dt = now - last;
     float v;
     last = now;
-    if (trk >= NTRK && !is_fx(trk)) {            /* COND, THROW: a step with something on it, playing; WEAVE: a
-                                                  * track weaving */
+    if (trk >= NTRK && !is_fx(trk)) {            /* COND, THROW: a step with something on it, playing */
         const step_t *st;
-        if (trk == AUX_WEAVE)
-            return (seq.wv_live | (playing() ? seq.wv_rec : 0)) ? HM_H : 0;
         if (!playing() || trk >= NSEQT)
             return 0;
         st = &tpat(trk)->st[eng_step[trk] % NSTEP];
@@ -1004,7 +975,7 @@ static void draw_header(void)
     if (ask)
         h = hash_s(h, ui.ask_q);
     meters_take();
-    if (((ui.page >= P_STEPS && ui.page <= P_PLAYERS3) || ui.page == P_WEAVE) && ui.page != P_THROWS)
+    if (((ui.page >= P_STEPS && ui.page <= P_PLAYERS3)) && ui.page != P_THROWS)
         mh = hdr_meter(page_trk(ui.page));
     h = hash_u(h, (uint32_t)mh);
     if (h == ui.sig[0])
@@ -1083,7 +1054,7 @@ static void draw_header(void)
         const char *bn = BTN_LABEL[PAGE_BTN[page_group(ui.page)].btn];
         const char *pn = lst.open && lst.bt ? (lst.bt == 1 ? "Audio devices" : "MIDI devices") : page_name_of(ui.page, sel_trk());
         int32_t w = text_w(&FONT_XS, bn) + 6;
-        if (((ui.page >= P_STEPS && ui.page <= P_PLAYERS3) || ui.page == P_WEAVE) && ui.page != P_THROWS) {   /* a track's page */
+        if (((ui.page >= P_STEPS && ui.page <= P_PLAYERS3)) && ui.page != P_THROWS) {   /* a track's page */
             int pt = page_trk(ui.page);
             const char *tn = TRACK_NAME[pt];
             int32_t tw = text_w(&FONT_XS, tn) + 10;
@@ -1561,7 +1532,7 @@ static void aux_engine_knobs(knob_t *k, int trk)
         kname(&k[0], BRAIN_KNOB[0], NOTE_NAME, par[TP_E2], 12);
         kname(&k[1], BRAIN_KNOB[1], BS_NAME, par[TP_E3], NBS);
         kname(&k[2], BRAIN_KNOB[2], LINK_NAME, par[TP_E4], 9);
-    } else if (trk == AUX_PUNCH || trk == AUX_WEAVE) {
+    } else if (trk == AUX_PUNCH) {
         kname(&k[0], "latch", ONOFF, par[TP_E1], 2);
     } else {
         int pick = par[TP_ENGINE] % NFXPICK;
@@ -1642,15 +1613,6 @@ static void page_knobs(knob_t *k)
         break;
     }
     case P_STEPS:
-        if (trk == AUX_WEAVE) {                      /* its pattern (the scene's) and length; a step held: the step's */
-            const wvpat_t *wp = &pats.weave[pats.scene[cur_scene()].weave % NPATT];
-            kn(&k[0], "PATTERN", pats.scene[cur_scene()].weave % NPATT + 1, NPATT);
-            if (ui.wv_step < NSTEP)
-                kn(&k[1], "STEP LEN", wp->st[ui.wv_step].len ? wp->st[ui.wv_step].len : 1, NSTEP);
-            else
-                kn(&k[1], "LENGTH", wp->len, NSTEP);
-            break;
-        }
         if (!is_seqt(trk))
             break;
         if (playing() && seq.pcue[trk] < NPATT && seq.pcue[trk] != cur_pat(trk)) {   /* cued: "1>2" until the bar */
@@ -1716,19 +1678,6 @@ static void page_knobs(knob_t *k)
             for (int i = 0; i < 4; i++)
                 ktp(&k[i], trk, tp_page_param(p, i, trk));
         break;
-    case P_WEAVE: {                                  /* the track's weave: the track and pattern woven in, the rule */
-        int f = wv_from(trk);
-        static char wt[8];
-        kv(&k[0], "WITH", f ? TRACK_NAME[f - 1] : "off", f, NSEQT);
-        num_s((uint32_t)wv_pat(trk) + 1u, s_cat(wt, "P"));
-        kv(&k[1], "PATTERN", f ? wt : "-", wv_pat(trk), NPATT - 1);
-        kname(&k[2], "RULE", WEAVE_NAME, wv_rule(trk), NWV);
-        if (f) {
-            static const char *const PLAYS[2] = {"always", "on WEAVE"};
-            kname(&k[3], "PLAYS", PLAYS, wv_cued(trk), 2);
-        }
-        break;
-    }
     case P_THROWS: {
         static const char *const LATCH[2] = {"off", "on"};
         kname(&k[0], "LATCH", LATCH, proj.trk[AUX_PUNCH].par[TP_E1] & 1u, 2);
@@ -2025,7 +1974,7 @@ static void draw_tag(void)
     int g = page_group(ui.page), n = group_n(g), d = grp_index(ui.page);
     int32_t r = 232, x, w;
     uint32_t h;
-    int big = band != &BANDS[0], st = big && steps_page(ui.page) && is_seqt(sel_trk()) && sel_trk() != AUX_WEAVE;
+    int big = band != &BANDS[0], st = big && steps_page(ui.page) && is_seqt(sel_trk());
     char nm[NAME_LEN + 2], hd[48];
     int nb = 0, pb = -1;
     page_tag(t);
@@ -2172,9 +2121,7 @@ static void page_footer(char *t)
         s_cat(t, "WHITE add scene|PLAY song|OCT 1-16, 17-32");
         break;
     case P_STEPS: case P_BAR:
-        if (trk == AUX_WEAVE && ui.page == P_STEPS)
-            s_cat(t, ui.wv_step < NSTEP ? "BLACK 1-10 its tracks|WHITE its end" : "WHITE steps: a tap adds, again clears");
-        else if (!is_seqt(trk))
+        if (!is_seqt(trk))
             s_cat(t, "ALGO track: no steps here");
         else if (ui.lockpg)
             s_cat(t, "KNOBS lock|SELECT page|SEL held + KNOB clear");
@@ -2209,9 +2156,6 @@ static void page_footer(char *t)
     case P_THROWS:
         s_cat(t, "KEYS throw: low drums, high melodic|REC held: record");
         break;
-    case P_WEAVE:
-        s_cat(t, "BLACK the track woven in|WHITE its pattern");
-        break;
     case P_MASTER3:
         s_cat(t, "SEL pump by, level|KEYS play");
         break;
@@ -2240,8 +2184,6 @@ static void page_footer(char *t)
             s_cat(t, ui.page == P_PLAY ? "BLACK route track" : ui.page == P_SUB ? "BLACK the track" : "KEYS chord");
         else if (trk == AUX_PUNCH)
             s_cat(t, "KEYS fx|REC record");
-        else if (trk == AUX_WEAVE)
-            s_cat(t, "WHITE 1-10 weave a track|REC record");
         else if (is_aux(trk))
             s_cat(s_cat(t, "KEYS play "), TRACK_NAME[ui.last_inst % NTRK]);
         else if (ui.page >= P_PLAYERS && ui.page <= P_PLAYERS3 && pl_type(trk) == PL_STRUM)
@@ -2259,7 +2201,7 @@ static void page_footer(char *t)
                      : ui.held ? "KNOBS lock the step|SEL held + KNOB clear" : "BLACK pick a key|WHITE its steps");
         else if (ui.page == P_ENGINE)
             s_cat(t, "PRESET next sound|SEL engine");
-        else if (ui.page == P_FILTER && !is_acid(trk))
+        else if (ui.page == P_FILTER)
             s_cat(t, "PRESET filter type|KEYS play");
         else if (ui.page == P_ENV)
             s_cat(t, "KEYS play|REC held: record");
@@ -2542,7 +2484,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
     {B_FX, PG_ANY, "Effects", "Character, sends, FX I, FX II, then Throws: keys fire effects.",
      "PRESETS: the type or effect. SEL: an FX's filter."},
     {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Page 2 has the type's fourth and fifth."},
-    {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random; last page, Weave.",
+    {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random.",
      "Random: tap steps as active slots; SEQ picks the pool."},
     {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
@@ -2556,7 +2498,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "Hold SAVE and press white key 1 to 3 to save to that slot."},
     {B_SAVE, PG_SOUND, "Save", "Tap to save the project.",
      "Hold SAVE and press a white key: the sound as that user preset."},
-    {B_SAVE, PG_ANY, "Save", "Saves now (LOOM-8 saves by itself when stopped and quiet).", "Hold SAVE and press white key 1 to 3 to save to that slot."},
+    {B_SAVE, PG_ANY, "Save", "Saves now (COLD saves by itself when stopped and quiet).", "Hold SAVE and press white key 1 to 3 to save to that slot."},
     {B_REC, PG_ANY, "Recording", "Stopped: a tap, then each key writes a step. + PLAY: live.",
      "Playing: hold it and play. Held, the knobs set click, count-in, mode."},
     {B_PLAY, PG(P_SONG), "Play", "Plays the song from the slot picked. PLAY again stops.", "SEL's PLAY SONG: from the top."},
@@ -2861,7 +2803,7 @@ static void list_home(int keep)
 /* EDIT: the sound's actions (EDIT only: the other buttons' lists are their knobs) */
 static void list_sound(int trk)
 {
-    static char slot_t[24], fol_t[24], kit_t[24], nm[NTRK][16], from_t[24], key_t[24];
+    static char slot_t[24], kit_t[24], nm[NTRK][16], from_t[24], key_t[24];
     int sc = snd_clip ? snd_clip - 1 : -1, paste = sc >= 0 && sc != trk && sc < NTRK && is_drum(sc) == is_drum(trk);
     if (trk == AUX_BRAIN) {
         list_head("follow");
@@ -2911,8 +2853,6 @@ static void list_sound(int trk)
             num_s((uint32_t)sc + 1u, s_cat(from_t, "from T"));
             list_add(ACTION_NAME[A_PASTE_SOUND], from_t, LK_ACTION, A_PASTE_SOUND);
         }
-        s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % NBM]);
-        list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
         if (is_midi(trk)) {                          /* its knobs' CCs (its notes always go out: no MIDI OUT) */
             list_head("MIDI");
             for (int k = 0; k < 8; k++) {
@@ -2965,7 +2905,7 @@ static void list_setup(int g)
     list_add(ACTION_NAME[A_CC_IN], proj.rsv[3] & CC_IN_ENDLESS ? "endless" : "absolute", LK_PICK, A_CC_IN);
     list_add(ACTION_NAME[A_CC_OUT], proj.rsv[2] & CC_OUT_OFF ? "off" : "on", LK_PICK, A_CC_OUT);
     list_add(ACTION_NAME[A_SCENES_OUT], proj.rsv[2] & SCENES_OUT ? "on" : "off", LK_PICK, A_SCENES_OUT);
-    list_head("LOOM-8");
+    list_head("COLD");
     list_page_knobs(P_SETUP, 9u);                    /* LIGHTS, THEME */
     list_add(ACTION_NAME[A_LARGE_TYPE], !large_type() ? "off" : lt_ok ? "on" : "on: reinstall", LK_PICK, A_LARGE_TYPE);
     list_add(ACTION_NAME[A_AUTOSAVE], proj.rsv[2] & AUTOSAVE_OFF ? "off" : "on", LK_PICK, A_AUTOSAVE);
@@ -2978,7 +2918,7 @@ static int list_is_setup(int p) { return p == P_SETUP || p == P_STATUS; }
 static void list_build(void)
 {
     int keep = ui.page, g = page_group(keep), trk = sel_trk(), b = PAGE_BTN[g].btn, knobs = 1, heads, i, j;
-    static char rm[NDRUM][16], keep_t[12];
+    static char rm[NDRUM][16];
     lst.n = 0;
     if (lst.bt) {
         if (lst.bt == 1)
@@ -3017,20 +2957,9 @@ static void list_build(void)
         list_clip_step();
         return;
     }
-    if (keep == P_STEPS && trk == AUX_WEAVE) {     /* WEAVE: its pattern cleared */
-        list_add(ACTION_NAME[A_CLEAR_NOTES], 0, LK_ACTION, A_CLEAR_NOTES);
-    } else if (steps_page(keep)) {
+    if (steps_page(keep)) {
         if (is_seqt(trk))
             list_steps(trk);
-    } else if (keep == P_WEAVE) {
-        if (wv_from(trk)) {
-            int to = pat_first_empty(trk);
-            if (to >= 0)
-                num_s((uint32_t)to + 1u, s_cat(keep_t, "P"));
-            else
-                s_cat(keep_t, "none empty");
-            list_add(ACTION_NAME[A_WEAVE], keep_t, LK_ACTION, A_WEAVE);
-        }
     } else if (keep == P_ARRANGE || keep == P_SONG) {
         list_home(keep);
     } else if (fx_page(keep)) {                     /* an effect: the type, its filter, the feed into FX II, the
@@ -3236,7 +3165,10 @@ static uint32_t hash_pat(uint32_t h, const tpat_t *p)
 static void arrange_large(const int *mh, const int *amh)
 {
     for (int tr = 0; tr < NSEQT; tr++) {
-        int32_t cw = 44, ch = 38, x = 2 + (tr % 5) * (cw + 4), y = 2 + (tr / 5) * (ch + 4);
+        if (tr == AUX_BRAIN)
+            continue;                                /* (the conductor is hidden) */
+        int cell = tr > AUX_BRAIN ? tr - 1 : tr;
+        int32_t cw = 44, ch = 38, x = 2 + (cell % 5) * (cw + 4), y = 2 + (cell / 5) * (ch + 4);
         int muted = seq.mute >> tr & 1u, pt = seq.ppat[tr] % NPATT, len = tpat(tr)->len, pos = eng_step[tr], lf, le;
         int m = tr < NTRK ? mh[tr] : amh[tr - NTRK];
         uint16_t ink = muted ? K_FAINT : trk_ink(tr);
@@ -3316,7 +3248,9 @@ static void draw_arrange(void)
         return;
     }
     for (int tr = 0; tr < NSEQT; tr++) {
-        int32_t y = 2 + tr * 10 + (tr >= NTRK ? 4 : 0);
+        if (tr == AUX_BRAIN)
+            continue;                                /* (the conductor is hidden) */
+        int32_t y = 2 + (tr > AUX_BRAIN ? tr - 1 : tr) * 10 + (tr >= NTRK ? 4 : 0);
         int muted = seq.mute >> tr & 1u, pt = seq.ppat[tr] % NPATT, len = tpat(tr)->len, pos = eng_step[tr];
         uint16_t ink = muted ? K_FAINT : K_DIM;
         char nm[8];
@@ -3495,53 +3429,6 @@ static void cell_note(int n, char *b)               /* a note's name in a cell; 
 }
 /* how many steps a step's note covers (its length, rounded up; the pattern's note length is under a step) */
 static int step_cover(const step_t *st) { return st->len ? (step_len_q(st->len) + 3) / 4 : 1; }
-/* WEAVE's Steps: the bar of its pattern, each step the tracks it weaves (names; more: "+n") and how long (the bar) */
-static void draw_weave_steps(void)
-{
-    const wvpat_t *wp = &pats.weave[pats.scene[cur_scene()].weave % NPATT];
-    int len = wp->len < 1 ? 16 : wp->len, pos = playing() ? (int)((seq.step_tick + (uint32_t)len - 1u) % (uint32_t)len) : -1;
-    uint32_t h = hash_u(hash_u(2166136261u, 0x5Bu), (uint32_t)ui.bar | (uint32_t)(pos + 1) << 4 | (uint32_t)ui.wv_step << 12 |
-                                          (uint32_t)len << 20);
-    char t[24];
-    for (int i = 0; i < NSTEP; i++)
-        h = hash_u(h, wv_mask(&wp->st[i]) | (uint32_t)wp->st[i].len << 16);
-    if (!begin_main(h))
-        return;
-    num_s((uint32_t)pats.scene[cur_scene()].weave % NPATT + 1u, s_cat(t, "WEAVE P"));
-    if (band == &BANDS[0])                           /* (large type: the cells from the top; the knob says the pattern) */
-        cv_text(ST_X + 2, 0, &FONT_XS, t, K_TEXT);
-    for (int i = 0; i < 16; i++) {
-        int s = ui.bar * 16 + i, in = s < len;
-        const wv_step_t *w = &wp->st[s];
-        uint32_t m = wv_mask(w);
-        int32_t x = ST_X + (i % 8) * ST_CW, y = ST_Y + (i / 8) * (ST_CH + 4);
-        uint16_t bg = !in ? K_BG : s == pos ? K_NOW : m ? K_PANEL2 : K_PANEL;
-        char n[4];
-        cv_round(x, y, ST_CW - 2, ST_CH, 4, bg);
-        if (s == ui.wv_step)
-            cv_frame(x, y, ST_CW - 2, ST_CH, 4, K_SEL, bg);
-        num_s((uint32_t)s + 1u, n);
-        cv_text(x + 4, y + ST_NUM, &FONT_XS, n, bg == K_NOW ? K_BG : K_DIM);
-        if (m) {                                     /* the first track woven, and how many more */
-            int first = __builtin_ctz(m), more = __builtin_popcount(m) - 1;
-            text_c(x + ST_MID, y + ST_L1, &FONT_XS, first < NTRK ? TRACK_NAME[first] : first == AUX_BRAIN ? "CO" : "TH",
-                   bg == K_NOW ? K_BG : K_TEXT);
-            if (more > 0) {
-                num_s((uint32_t)more, s_cat(t, "+"));
-                text_c(x + ST_MID, y + ST_L2, &FONT_XS, t, bg == K_NOW ? K_BG : K_DIM);
-            }
-        }
-    }
-    for (int i = 0; i < 16; i++) {                   /* the lengths, over the cells: a bar from each step on */
-        const wv_step_t *w = &wp->st[ui.bar * 16 + i];
-        int32_t y = ST_Y + (i / 8) * (ST_CH + 4);
-        if (!wv_mask(w) || ui.bar * 16 + i >= len)
-            continue;
-        for (int j = 0; j < (w->len ? w->len : 1) && i + j < 16 && (i + j) / 8 == i / 8; j++)
-            cv_rect(ST_X + ((i + j) % 8) * ST_CW + (j ? 0 : 3), y + ST_CH - 4, ST_CW - (j ? 0 : 3) - (j + 1 == (w->len ? w->len : 1) ? 3 : 0), 2, K_NOW);
-    }
-    cv_blit(0, MAIN_Y);
-}
 /* the Steps page's head: an instrument's name (nm) and what a step takes (t: its sound, or the notes held); an aux
  * track's in t alone ("fx: ...", "chord: ...") */
 static void steps_head(int trk, char *nm, char *t)
@@ -3563,7 +3450,7 @@ static void steps_head(int trk, char *nm, char *t)
         if (ui.rem_fx && PX_VALID(ui.rem_fx - 1))
             s_cat(s_cat(e, PUNCH_NAME[(ui.rem_fx - 1) & 15]), ui.rem_fx - 1 >= PX_MEL ? " (melodic)" : " (drums)");
         else
-            s_cat(e, "play a key on EDIT first");
+            s_cat(e, "play a key");
         return;
     } else
         e = s_cat(t, "chord: ");
@@ -3584,10 +3471,6 @@ static void draw_steps(void)                         /* large type: the cells in
 }
 static void draw_steps_as(void)
 {
-    if (sel_trk() == AUX_WEAVE) {
-        draw_weave_steps();
-        return;
-    }
     {
     int trk = sel_trk(), drum = is_drum(trk), pt = cur_pat(trk), ph = eng_step[trk];
     const tpat_t *tp = tpat(trk);
@@ -3908,200 +3791,6 @@ static void pic_rayon(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         }
     }
 }
-static void pic_organ(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    /* the six drawbars stops and pedal pull out (synth.c organ_bars), each from the top as far as its level, its
-     * footage under it; the rotor at the right: a horn turning at rate, as wide as its amount (still at 1) */
-    static const char *const FT[6] = {"16", "8", "4", "2 2/3", "2", "1 1/3"};
-    float bars[6];
-    int32_t bw = 18, gap = 9, bh = h - 22, rx = x0 + w - 24, ry = y0 + bh / 2 + 4, rr = bh / 2 + 2 < 20 ? bh / 2 + 2 : 20;
-    int amt = p[TP_E3] < 1 ? 1 : p[TP_E3] > 8 ? 8 : p[TP_E3], rate = p[TP_E4] < 1 ? 1 : p[TP_E4] > 8 ? 8 : p[TP_E4];
-    organ_bars(p, bars);
-    for (int k = 0; k < 6; k++) {
-        int32_t x = x0 + k * (bw + gap), v = 6 + (int32_t)(bars[k] * (float)(bh - 6) + 0.5f);
-        cv_round(x, y0, bw, bh, 3, K_PANEL2);
-        cv_round(x, y0, bw, v, 3, k == 1 ? K_NOW : K_DIM);
-        cv_rect(x + 3, y0 + v - 4, bw - 6, 2, K_BG);        /* the bar's handle */
-        text_c(x + bw / 2, y0 + bh + 4, &LFONT_XS, FT[k], K_DIM);   /* (12 px always: 27 px apart) */
-    }
-    {
-        float a = amt > 1 ? (float)f * 0.012f * (float)rate : 0.0f;   /* (rate 1..8: 0.5 .. 8 Hz, drawn slower) */
-        float r = 6.0f + (float)(amt - 1) * 2.0f;
-        pen_t ring = {0};
-        for (int i = 0; i <= 32; i++) {
-            float t = (float)i / 32.0f;
-            pen_to(&ring, (float)rx + fm_sin_turns(t + 0.25f) * (float)rr, (float)ry + fm_sin_turns(t) * (float)rr, K_LINE);
-        }
-        cv_linef((float)rx - fm_sin_turns(a + 0.25f) * r, (float)ry - fm_sin_turns(a) * r * 0.4f,
-                 (float)rx + fm_sin_turns(a + 0.25f) * r, (float)ry + fm_sin_turns(a) * r * 0.4f, K_NOW, 2.0f);
-        text_c(rx, y0 + bh + 4, &LFONT_XS, "rotor", K_DIM);
-    }
-}
-/* knit: the wave (saw .. square .. pulse) a line a voice, the voices drifting apart as detune opens (one voice:
- * its slow drift) and fanned up and down as width opens */
-static void pic_knit(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    static const float OFF[7] = {0.0f, 0.3f, -0.3f, 0.6f, -0.6f, 1.0f, -1.0f};
-    int n = p[TP_E3] < 1 ? 1 : p[TP_E3] > 7 ? 7 : p[TP_E3];
-    float wv = (float)p[TP_E1] / 127.0f, mix = wv < 0.5f ? wv * 2.0f : 1.0f, pw = wv < 0.5f ? 0.5f : 0.5f - (wv - 0.5f) * 0.8f;
-    float det = (float)p[TP_E2] / 127.0f, amp = (float)h / 6.0f, fan = (float)p[TP_E4] / 127.0f * ((float)h / 2.0f - amp - 2.0f);
-    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
-    for (int j = n - 1; j >= 0; j--) {          /* the centre one last, on top */
-        pen_t pn = {0};
-        float o = n > 1 ? OFF[j] : 0.0f, drift = n > 1 ? o * det * (float)f / 24.0f : det * 0.1f * fm_sin_turns((float)f / 97.0f);
-        float cy = (float)(y0 + h / 2) - o * fan;
-        uint16_t col = j == 0 ? K_NOW : K_DIM;
-        for (int32_t x = 0; x <= w; x++) {
-            float ph = (float)x / (float)w * 3.0f + drift, fr = ph - fm_floorf(ph);
-            float saw = 1.0f - 2.0f * fr, pulse = fr < pw ? 1.0f : -1.0f;
-            pen_to(&pn, (float)(x0 + x), cy - (saw + (pulse - saw) * mix) * amp, col);
-        }
-    }
-}
-/* acid: three cycles of its wave (saw, or the 303's square) through a resonant low-pass at its cutoff, opened by its env
- * mod as a note's start does: the resonance rings at each edge; the decay's curve dim behind */
-static void pic_acid(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
-{
-    const int sq = p[TP_E1] & 1;
-    const float cut = (float)p[TP_CUT] / 127.0f, res = (float)p[TP_RES] / 127.0f, env = (float)p[TP_FENV] / 127.0f;
-    const float dec = (float)p[TP_D] / 127.0f, amp = (float)h * 0.28f, cy = (float)(y0 + h / 2);
-    const float g = 0.03f + 0.25f * cut * cut + 0.2f * env, q = 2.0f - 1.85f * res;
-    float lo = 0.0f, bp = 0.0f;
-    pen_t pe = {0}, pn = {0};
-    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
-    for (int32_t x = 0; x <= w; x++) {               /* the decay: from the top, falling over 0.2 .. 2 s */
-        float t = (float)x / (float)w;
-        pen_to(&pe, (float)(x0 + x), (float)(y0 + 4) + (float)(h - 8) * (1.0f - fm_expf(-t * (5.0f - 4.0f * dec))), K_LINE);
-    }
-    for (int pass = 0; pass < 2; pass++)             /* (the first pass settles the filter: the second is drawn) */
-        for (int32_t x = 0; x <= w; x++) {
-            float ph = (float)x / (float)w * 3.0f, fr = ph - fm_floorf(ph);
-            float in = sq ? (fr < 0.5f ? 1.0f : -1.0f) : 1.0f - 2.0f * fr, hi;
-            for (int k = 0; k < 2; k++) {            /* a state-variable low-pass, twice a pixel */
-                hi = in - lo - q * bp;
-                bp += g * hi;
-                lo += g * bp;
-            }
-            if (pass)
-                pen_to(&pn, (float)(x0 + x), cy - fm_clampf(lo, -1.6f, 1.6f) * amp, K_NOW);
-        }
-}
-/* cane: the model's instrument. pluck: a string bent at color's place, swinging (longer at a higher timbre); bow:
- * the string and the bow across it at color's place, heavier with timbre; reed and flute: the tube and its
- * holes, the breath's specks at the mouth (fewer as timbre steadies it), the flute's embouchure at color; bell:
- * the bell and its rings (more as timbre lengthens them); drum: the head, its ripples; damp dims the ink */
-static inline float pic_wrap(float x) { return x - fm_floorf(x); }
-static void pic_cane(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    int md = p[TP_E1] < NCANE ? p[TP_E1] : 0;
-    float tb = (float)p[TP_E2] / 127.0f, co = (float)p[TP_E3] / 127.0f, cy = (float)(y0 + h / 2);
-    float xl = (float)(x0 + 8), xr = (float)(x0 + w - 8), xp = xl + (0.1f + 0.8f * co) * (xr - xl);
-    uint16_t ink = p[TP_E4] > 64 ? K_DIM : K_NOW;
-    uint32_t r = 77u ^ (f / 2);
-    pen_t pn = {0};
-    if (md <= 1) {                                   /* a string between its nut and its bridge */
-        float a = (float)h * 0.3f * fm_sin_turns((float)f * 0.09f) * (md ? 0.25f : 0.3f + 0.7f * tb) * pic_lvl;
-        cv_round(x0 + 2, (int32_t)cy - 8, 6, 16, 2, K_DIM);
-        cv_round(x0 + w - 8, (int32_t)cy - 8, 6, 16, 2, K_DIM);
-        pen_to(&pn, xl, cy, ink);
-        if (md == 0) {
-            pen_to(&pn, xp, cy - a, ink);
-        } else {
-            for (int k = 1; k <= 16; k++) {           /* the bowed string's swing, a lens */
-                float t = (float)k / 16.0f;
-                pen_to(&pn, xl + t * (xr - xl), cy - a * fm_sin_turns(t * 0.5f), ink);
-            }
-            cv_round((int32_t)xp - 2 - (int32_t)(tb * 3.0f), y0 + 4, 4 + (int32_t)(tb * 6.0f), h - 8, 3, K_DIM);
-        }
-        pen_to(&pn, xr, cy, ink);
-    } else if (md <= 3) {                            /* a tube, its holes; the breath at its mouth */
-        int32_t th = md == 2 ? 26 : 16, tx = x0 + 34, tw = w - 40;
-        cv_frame(tx, (int32_t)cy - th / 2, tw, th, th / 2, ink, K_BG);
-        for (int k = 0; k < 6; k++)
-            cv_dotf((float)(tx + tw / 3 + k * (tw * 2 / 3 - 12) / 5), cy, md == 2 ? 3.0f : 2.2f, ink);
-        if (md == 2) {                               /* the reed's mouthpiece */
-            pen_to(&pn, (float)tx, cy - 9.0f, ink);
-            pen_to(&pn, (float)(tx - 16), cy - 3.0f, ink);
-            pen_to(&pn, (float)(tx - 16), cy + 3.0f, ink);
-            pen_to(&pn, (float)tx, cy + 9.0f, ink);
-        } else {                                     /* the embouchure, at color's place along the head */
-            cv_round(tx + 6 + (int32_t)(co * 16.0f), (int32_t)cy - 4, 8, 8, 4, K_DIM);
-        }
-        for (int k = 0; k < 4 + (int)((1.0f - tb) * 20.0f); k++) {
-            r = r * 1664525u + 1013904223u;
-            cv_rect(x0 + 2 + (int32_t)((r >> 8) % 26u), (int32_t)cy - 10 + (int32_t)((r >> 20) % 20u), 2, 2, K_DIM);
-        }
-    } else if (md == 4) {                            /* the bell, its clapper swinging, its rings */
-        float bx = (float)(x0 + w / 2), sw = 3.0f * fm_sin_turns((float)f * 0.05f);
-        for (int k = 0; k <= 20; k++) {
-            float t = (float)k / 20.0f, half = 8.0f + 26.0f * t * t * t + 6.0f * t;
-            pen_to(&pn, bx - half, (float)(y0 + 10) + t * (float)(h - 26), ink);
-        }
-        pen_up(&pn);
-        for (int k = 0; k <= 20; k++) {
-            float t = (float)k / 20.0f, half = 8.0f + 26.0f * t * t * t + 6.0f * t;
-            pen_to(&pn, bx + half, (float)(y0 + 10) + t * (float)(h - 26), ink);
-        }
-        cv_line(x0 + w / 2 - 40, y0 + h - 16, x0 + w / 2 + 40, y0 + h - 16, ink);
-        cv_dotf(bx + sw, (float)(y0 + h - 10), 3.5f, K_DIM);
-        for (int k = 0; k < 1 + (int)(tb * 4.0f); k++) {
-            float rr = 46.0f + (float)((int)(f * 2u + (uint32_t)k * 9u) % 36);
-            cv_rect((int32_t)(bx + rr), y0 + h / 2 - 4, 1, 8, K_FAINT);
-            cv_rect((int32_t)(bx - rr), y0 + h / 2 - 4, 1, 8, K_FAINT);
-        }
-    } else {                                         /* the drum: its head, the ripples a strike sends */
-        float dx = (float)(x0 + w / 2), dy = (float)(y0 + 26), ex = 60.0f, ey = 12.0f;
-        for (int k = 0; k <= 32; k++)
-            pen_to(&pn, dx + ex * fm_sin_turns((float)k / 32.0f + 0.25f), dy + ey * fm_sin_turns((float)k / 32.0f), ink);
-        cv_line((int32_t)(dx - ex), (int32_t)dy, (int32_t)(dx - ex + 6), y0 + h - 6, ink);
-        cv_line((int32_t)(dx + ex), (int32_t)dy, (int32_t)(dx + ex - 6), y0 + h - 6, ink);
-        cv_line((int32_t)(dx - ex + 6), y0 + h - 6, (int32_t)(dx + ex - 6), y0 + h - 6, ink);
-        {
-            float g = (float)(f % 24u) / 24.0f;
-            pen_up(&pn);
-            for (int k = 0; k <= 24; k++)
-                pen_to(&pn, dx + g * ex * fm_sin_turns((float)k / 24.0f + 0.25f), dy + g * ey * fm_sin_turns((float)k / 24.0f),
-                       co > 0.5f ? K_DIM : K_FAINT);
-        }
-    }
-}
-/* voile: the voice's spectrum: its formants as peaks over the note's harmonics (vosim: timbre's and color's;
- * vowel and choir: the vowel's along timbre, color moving them; whisper: two, sharper with timbre, apart by
- * color), the breath as specks under them */
-static void pic_voile(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    int md = p[TP_E1] < NVOILE ? p[TP_E1] : 0, np = md == 0 || md == 3 ? 2 : md == 1 ? 3 : 5;
-    float tb = (float)p[TP_E2] / 127.0f, co = (float)p[TP_E3] / 127.0f, cx[5], wd, base = (float)(y0 + h - 4);
-    uint32_t r = 31u ^ (f / 3);
-    pen_t pn = {0};
-    if (md == 0) {
-        cx[0] = tb;
-        cx[1] = co;
-    } else if (md == 3) {
-        cx[0] = 0.3f;
-        cx[1] = fm_clampf(0.3f + (co - 0.5f) * 0.9f, 0.02f, 0.98f);
-    } else {
-        float sh = 0.8f + 0.4f * co;
-        for (int k = 0; k < np; k++)
-            cx[k] = fm_minf((0.08f + 0.19f * (float)k + 0.08f * fm_sin_turns(tb * 0.8f + (float)k * 0.31f)) * sh, 0.97f);
-    }
-    wd = md == 3 ? 0.012f + (1.0f - tb) * 0.05f : 0.035f;
-    if (md != 3)
-        for (int32_t x = 6; x < w; x += 12)          /* the harmonics */
-            cv_rect(x0 + x, y0 + 30, 1, h - 34, K_PANEL2);
-    for (int32_t x = 0; x <= w; x += 2) {
-        float t = (float)x / (float)w, y = 0.0f;
-        for (int k = 0; k < np; k++) {
-            float d = (t - cx[k]) / wd;
-            y += fm_expf(-d * d) / (1.0f + 0.5f * (float)k);
-        }
-        pen_to(&pn, (float)(x0 + x), base - fm_minf(y, 1.2f) * (float)(h - 14), K_NOW);
-    }
-    for (int k = 0; k < p[TP_E4] / 3; k++) {
-        r = r * 1664525u + 1013904223u;
-        cv_rect(x0 + (int32_t)((r >> 8) % (uint32_t)w), y0 + h - 4 - (int32_t)((r >> 20) % 24u), 2, 2, K_DIM);
-    }
-}
 /* the sample engine: the sample's waveform (each column its lowest and highest), the region that plays bright,
  * the rest faint, the loop's ends marked; its name, root and the mode above */
 static int8_t smp_col_lo[200], smp_col_hi[200];
@@ -4195,62 +3884,6 @@ static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
         else
             cv_round(x0 + xa - 3 < x0 ? x0 : x0 + xa - 3, wy, 6, 6, 3, K_TEXT);
     }
-}
-
-/* the slice engine: the loop's waveform cut by its slice lines, each slice's gated part drawn and what the gate
- * leaves out faint; the slice playing tinted and bright, a line where it plays; a dot on slice 1 (the root's).
- * Above: the loop's name and bars (or its own speed), the count or the slice playing */
-static void pic_slice(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, int trk)
-{
-    int idx = p[TP_E1] < smp_slots() ? p[TP_E1] : smp_slots() - 1, ns = sl_count(p[TP_E2]), sl = -1, on;
-    const smp_t *sm = smp_get(idx);
-    int32_t wy = y0 + 20, wh = h - 22, cy = wy + wh / 2, pos = 0, px = -1;
-    int32_t gate = (p[TP_E4] > 127 ? 127 : p[TP_E4]) * 1000 / 127;
-    char t[40], *e;
-    if (gate < 20)
-        gate = 20;                                   /* (as the engine: 2 % at least) */
-    if (w > 200)
-        w = 200;
-    if (!sm) {
-        text_c(x0 + w / 2, cy - 16, &FONT_S, smp_name(idx), K_DIM);
-        text_c(x0 + w / 2, cy + 4, &FONT_XS, smp_missing(idx), K_DIM);
-        return;
-    }
-    e = s_cat(t, sm->name);
-    if (sm->bars) {
-        e = num_s(sm->bars, s_cat(e, ", "));
-        e = s_cat(e, sm->bars > 1 ? " bars" : " bar");
-    } else {
-        e = s_cat(e, ", own speed");
-    }
-    text_fit(x0, y0 + 2, &FONT_XS, t, w - 76, K_TEXT);
-    on = engine_slice_now(trk, &sl, &pos) && sl >= 0 && sl < ns;
-    if (on) {
-        e = num_s((uint32_t)sl + 1u, s_cat(t, "slice "));
-        num_s((uint32_t)ns, s_cat(e, " of "));
-        px = (int32_t)((float)pos * (float)w / (float)sm->n);
-    } else {
-        s_cat(num_s((uint32_t)ns, t), " slices");
-    }
-    text_r(x0 + w, y0 + 2, &FONT_XS, t, on ? K_TEXT : K_DIM);
-    smp_columns(idx, sm, w);
-    if (on)
-        cv_rect(x0 + sl * w / ns, wy, (sl + 1) * w / ns - sl * w / ns, wh, K_TINT);
-    cv_rect(x0, cy, w, 1, K_LINE);
-    for (int32_t x = 0; x < w; x++) {
-        int k = x * ns / w;
-        int32_t a = k * w / ns, b = (k + 1) * w / ns, in = (x - a) * 1000 < gate * (b - a);
-        int32_t yl = cy - smp_col_hi[x] * (wh / 2 - 1) / 127, yh = cy - smp_col_lo[x] * (wh / 2 - 1) / 127;
-        cv_rect(x0 + x, yl, 1, yh - yl + 1, !in ? K_FAINT : on && k == sl ? K_NOW : K_DIM);
-    }
-    for (int k = 1; k < ns; k++) {                   /* the cuts: a gap through the wave, a tick above and below */
-        cv_rect(x0 + k * w / ns, wy, 1, wh, K_BG);
-        cv_rect(x0 + k * w / ns, wy, 1, 3, K_LINE);
-        cv_rect(x0 + k * w / ns, wy + wh - 3, 1, 3, K_LINE);
-    }
-    if (px >= 0 && px < w)
-        cv_rect(x0 + px, wy, 1, wh, K_TEXT);
-    cv_round(x0, wy, 6, 6, 3, K_TEXT);              /* slice 1 */
 }
 
 /* the drumline: eleven pads, each key's model, the shown one ringed, hits flashing */
@@ -4352,12 +3985,10 @@ static void draw_engine(void)
     uint32_t h;
     pic_clock(trk);
     h = hash_u(hash_u(2166136261u, 0xE0u), (uint32_t)trk | (uint32_t)eg << 4 | (uint32_t)ui.dsound << 8 |
-                                          (eg == EG_SAMPLE || eg == EG_SLICE ? 0u : (pic_f / 2) << 12));
+                                          (eg == EG_SAMPLE ? 0u : (pic_f / 2) << 12));
     h = hash_u(h, (uint32_t)(pic_lvl * 32.0f));
     for (int i = 0; i < 4; i++)
         h = hash_u(h, p[TP_E1 + i]);
-    if (eg == EG_ACID)                               /* (its picture draws its filter page too) */
-        h = hash_u(h, (uint32_t)p[TP_CUT] | (uint32_t)p[TP_RES] << 8 | (uint32_t)p[TP_FENV] << 16 | (uint32_t)p[TP_D] << 24);
     if (eg == EG_MIDI) {                             /* (the second page's values, the eight CCs, which page; a note
                                                       * out: the port lit, easing out) */
         eng_midi_hit[trk] = (uint8_t)(eng_midi_hit[trk] > 20 ? eng_midi_hit[trk] - 20 : 0);
@@ -4367,17 +3998,10 @@ static void draw_engine(void)
         for (int k = 0; k < 8; k++)
             h = hash_u(h, (uint32_t)p[k < 4 ? TP_E1 + k : TP_X1 + k - 4] | (uint32_t)p[midi_cc_par(k)] << 8 |
                               (uint32_t)ui.page << 16);
-    if (eg == EG_SAMPLE || eg == EG_SLICE)           /* (the bank: an upload changes what the picture shows) */
+    if (eg == EG_SAMPLE)                             /* (the bank: an upload changes what the picture shows) */
         h = hash_u(h, (uint32_t)smp_user_count() << 16 ^ smp_user_bytes());
     if (eg == EG_SAMPLE)                             /* (its loop page's knobs mark the loop) */
         h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)ui.page << 16);
-    if (eg == EG_SLICE) {                            /* the slice playing and where (a column of the picture) */
-        int sl;
-        int32_t pos;
-        const smp_t *sm = smp_get(p[TP_E1]);
-        if (engine_slice_now(trk, &sl, &pos) && sm)
-            h = hash_u(h, (uint32_t)(sl + 1) | (uint32_t)((float)pos * 200.0f / (float)sm->n) << 8);
-    }
     if (eg == EG_DRUMLINE)
         for (int k = 0; k < DL_NSOUND; k++) {
             eng_drum_hit[k] = (uint8_t)(eng_drum_hit[k] > 10 ? eng_drum_hit[k] - 10 : 0);   /* the flash eases out */
@@ -4403,14 +4027,8 @@ static void draw_engine(void)
     switch (eg) {
     case EG_JACQUARD: pic_wave(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_RAYON: pic_rayon(20, 24, 200, PIC_H, p, pic_f); break;
-    case EG_BELLOWS: pic_organ(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_SAMPLE: pic_sample(20, 24, 200, PIC_H, p); break;
-    case EG_SLICE: pic_slice(20, 24, 200, PIC_H, p, trk); break;
-    case EG_CANE: pic_cane(20, 24, 200, PIC_H, p, pic_f); break;
-    case EG_VOILE: pic_voile(20, 24, 200, PIC_H, p, pic_f); break;
-    case EG_KNIT: pic_knit(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB, eng_midi_hit[trk]); break;
-    case EG_ACID: pic_acid(20, 24, 200, PIC_H, p); break;
     default:                                         /* the kit (large type: the pads fill the band, 4 px in) */
         if (LARGE)
             pic_drumline(2, 26, 236, MAIN_H - 26, p, pic_f);
@@ -4717,7 +4335,7 @@ static void draw_play(void)
     char t[40];
     if (!begin_main(h))
         return;
-    const char *sub = p[TP_ENGINE] == EG_ACID ? "one voice, held notes slide" : p[TP_VMODE] % 3 == VM_POLY ? "up to 6 voices on the track"
+    const char *sub = p[TP_VMODE] % 3 == VM_POLY ? "up to 6 voices on the track"
                     : p[TP_VMODE] % 3 == VM_MONO ? "one voice, every key restarts it" : "one voice, held keys glide";
     int32_t ty;
     if (LARGE)                                       /* (large type: the line on the title's, right) */
@@ -4778,102 +4396,17 @@ static void draw_rayon_fall(void)
     }
     cv_blit(0, MAIN_Y);
 }
-/* knit's Sub page: its layers stacked, each as tall as its level: the wave (faint: the first page's), osc 2 at its
- * interval, the sub an octave down, the noise */
-static void draw_knit_x(void)
-{
-    int trk = sel_trk();
-    const uint8_t *p = par_now(trk);
-    int st = clampi((int)p[TP_X1] - 64, -24, 24);
-    uint32_t h = hash_u(hash_u(2166136261u, 0xA4u), (uint32_t)trk | (uint32_t)p[TP_X1] << 4 | (uint32_t)p[TP_X2] << 12 |
-                                                    (uint32_t)p[TP_X3] << 20);
-    float wv = (float)p[TP_E1] / 127.0f, mix = wv < 0.5f ? wv * 2.0f : 1.0f, pw = wv < 0.5f ? 0.5f : 0.5f - (wv - 0.5f) * 0.8f;
-    float ratio = fm_exp2f((float)st * (1.0f / 12.0f)), lv[4] = {1.0f, (float)p[TP_X2] / 127.0f, (float)p[TP_X3] / 127.0f,
-                                                                   (float)p[TP_X4] / 127.0f};
-    static const char *const NM[4] = {"wave", "osc 2", "sub", "noise"};
-    uint32_t r = 12345u;
-    char t[24];
-    h = hash_u(h, p[TP_X4]);
-    h = hash_u(h, p[TP_E1]);
-    if (!begin_main(h))
-        return;
-    for (int l = 0; l < 4; l++) {
-        pen_t pn = {0};
-        float cy = (float)MY(14 + l * 26), amp = (float)MY(10) * lv[l];   /* (large type: the rows closer) */
-        cv_text(8, (int32_t)cy - LY(6, 7), LY(&FONT_XS, F_CAP), NM[l], lv[l] > 0.0f ? K_DIM : K_FAINT);
-        for (int32_t x = 0; x <= 170; x++) {
-            float ph = (float)x / 170.0f * 3.0f * (l == 1 ? ratio : l == 2 ? 0.5f : 1.0f), fr = ph - fm_floorf(ph), y;
-            if (l == 2)
-                y = fm_sin_turns(ph);
-            else if (l == 3)
-                r = r * 1664525u + 1013904223u, y = (float)(int32_t)r * (1.0f / 2147483648.0f);
-            else
-                y = (1.0f - 2.0f * fr) + ((fr < pw ? 1.0f : -1.0f) - (1.0f - 2.0f * fr)) * mix;
-            pen_to(&pn, (float)(56 + x), cy - y * amp, l == 0 ? K_FAINT : K_NOW);
-        }
-    }
-    if (st)
-        num_i(st, s_cat(t, st > 0 ? "osc 2 +" : "osc 2 ")), s_cat(t + s_len(t), " st");
-    else
-        s_cat(t, "osc 2 in unison");
-    text_r(230, LY(100, 64), F_CAP, t, K_DIM);
-    cv_blit(0, MAIN_Y);
-}
-/* acid's Sub page: its drive (TP_X1 amount, TP_X2 off / soft / rat; bass303.c drive_block) on two cycles of a sine,
- * the input faint and what comes out bright, each scaled to the picture's height (the shape, not the level) */
-static void draw_acid_x(void)
-{
-    int trk = sel_trk();
-    const uint8_t *p = par_now(trk);
-    int ty = p[TP_X2] % 3;
-    float d = (float)p[TP_X1] / 127.0f, g = ty == 1 ? fm_exp2f(d * 24.0f * 0.166096405f) : 1.0f + d * 40.0f;
-    float cy = (float)MY(54), amp = (float)MY(34), y[171], top = 0.0f;
-    uint32_t h = hash_u(hash_u(2166136261u, 0xA7u), (uint32_t)trk | (uint32_t)p[TP_X1] << 4 | (uint32_t)ty << 12 |
-                                                    (uint32_t)p[TP_X3] << 16);
-    pen_t a = {0}, b = {0};
-    char t[32];
-    if (!begin_main(h))
-        return;
-    for (int x = 0; x <= 170; x++) {                 /* the curve, then its height to scale it to the picture */
-        float v = fm_sin_turns((float)x / 85.0f), u = v * g;
-        if (ty == 1)
-            u = fm_tanhf(u + 0.15f) - 0.14888503f;   /* soft: tanh, a little asymmetric */
-        else if (ty == 2) {
-            float x2 = u * u, sq = fm_rsqrtf(1.0f + x2 * x2);
-            u *= sq * fm_rsqrtf(sq);                 /* rat: x / (1 + x^4)^(1/4) */
-        } else
-            u = v;
-        y[x] = u;
-        top = fm_maxf(top, fm_fabsf(u));
-    }
-    cv_rect(56, (int32_t)cy, 171, 1, K_LINE);
-    for (int x = 0; x <= 170; x++) {
-        pen_to(&a, (float)(56 + x), cy - fm_sin_turns((float)x / 85.0f) * amp, K_FAINT);
-        pen_to(&b, (float)(56 + x), cy - y[x] / (top > 0.0f ? top : 1.0f) * amp, ty && d > 0.0f ? K_NOW : K_DIM);
-    }
-    cv_text(8, MY(20), F_CAP, "in", K_FAINT);
-    cv_text(8, MY(34), F_CAP, "out", ty && d > 0.0f ? K_NOW : K_DIM);
-    if (!ty || d <= 0.0f)
-        s_cat(t, "drive off");
-    else
-        num_i((int32_t)(d * 100.0f + 0.5f), s_cat(s_cat(s_cat(t, "drive "), ty == 1 ? "soft" : "rat"), " ")), s_cat(t + s_len(t), " %");
-    cv_text(8, LY(100, 64), F_CAP, t, K_DIM);
-    text_r(230, LY(100, 64), F_CAP, "shaper: the square's edge", K_FAINT);
-    cv_blit(0, MAIN_Y);
-}
-/* the Sub page: the engine's second page of knobs (TP_X1..X4), knit's layers, rayon's fall or acid's drive */
+/* the Sub page: the engine's second page of knobs (TP_X1..X4): rayon's fall, the sample's loop, MIDI's knobs 5..8 */
 static void draw_sub(void)
 {
     int eg = proj.trk[sel_trk()].par[TP_ENGINE];
     if (eg == EG_RAYON)
         draw_rayon_fall();
-    else if (eg == EG_ACID)
-        draw_acid_x();
     else if (eg == EG_SAMPLE || eg == EG_MIDI)
         draw_engine();                           /* (the sample's loop page: the waveform, its loop marked; MIDI's
                                                   * knobs 5..8: its eight bars) */
     else
-        draw_knit_x();
+        draw_engine();
 }
 /* a drum key's own envelope: its lag (flat), the attack's rise, the hold, the decay's fall (or, off, the level
  * held to the right edge: the sound's own length rules), the key's colour under it */
@@ -5011,27 +4544,6 @@ static void draw_env(int filter)
     int n = 0;
     pen_t pn = {0};
     h = hash_u(h, p[b + 3] | (uint32_t)drum << 8);
-    if (is_acid(trk) && !filter) {                   /* the 303's: over 3 s, the filter's opening (its attack's rise,
-                                                      * its decay), an accented note's dimmer, the held note's level */
-        const float ta = 0.3f * fm_exp2f(p[TP_A] * (13.28771238f / 127.0f)), td = 200.0f * fm_exp2f(p[TP_D] * (3.321928095f / 127.0f));
-        const float tc = 30.0f + p[TP_S] * (2970.0f / 127.0f), tl = 30.0f + p[TP_R] * (2970.0f / 127.0f);
-        pen_t pa = {0}, pc = {0}, pl = {0};
-        if (!begin_main(hash_u(h, 0xAC1Du)))
-            return;
-        cv_rect(16, 16 + 84, 208, 1, K_LINE);
-        for (int32_t xi = 0; xi <= 208; xi++) {
-            float ms = (float)xi * (3000.0f / 208.0f);
-            float rise = 1.0f - fm_expf(-ms / ta), fl = rise * fm_expf(-ms / td), ac = fm_expf(-ms / tc);
-            pen_to(&pl, x0 + (float)xi, base - hh * 0.9f * fm_expf(-ms / tl), K_LINE);
-            pen_to(&pc, x0 + (float)xi, base - hh * ac * (1.0f - fm_expf(-ms / 15.0f)), K_DIM);
-            if (xi)
-                cv_rect((int32_t)x0 + xi, (int32_t)(base - hh * fl + 1.5f), 1, (int32_t)(hh * fl), K_TINT);
-            pen_to(&pa, x0 + (float)xi, base - hh * fl, K_NOW);
-        }
-        cv_text(16, 16 + 84 + 3, &FONT_XS, "filter; dim: accented; line: the note's level", K_DIM);
-        cv_blit(0, MAIN_Y);
-        return;
-    }
     if (!begin_main(h))
         return;
     cv_rect(16, 16 + 84, 208, 1, K_LINE);
@@ -5139,7 +4651,7 @@ static void draw_filter(void)
     }
     cv_rect(fc, y0, 1, hh, K_FAINT);
     cv_text(x0, y0 + hh + 3, &FONT_XS, tp_info_par(TP_FTYPE, p)->names[ft], K_DIM);
-    text_r(x0 + w, y0 + hh + 3, &FONT_XS, is_acid(trk) ? "" : p[TP_KTRK] ? "key tracking on" : "", K_DIM);
+    text_r(x0 + w, y0 + hh + 3, &FONT_XS, p[TP_KTRK] ? "key tracking on" : "", K_DIM);
     cv_blit(0, MAIN_Y);
 }
 /* the instrument's character stage: its type, what it does, and a picture of it (synth.c char_picture: the
@@ -5309,7 +4821,6 @@ static void draw_players(void)
     if (is_drum(trk)) {
         cv_text(12, 4, &FONT_B, "no player", K_DIM);
         cv_text(12, 24, F_CAP, "a kit's keys are its sounds: no arp, no strum", K_DIM);
-        cv_text(12, LY(48, 40), LY(&FONT_S, F_CAP), "WEAVE is on the last page (SELECT)", K_DIM);
         cv_blit(0, MAIN_Y);
         return;
     }
@@ -5536,8 +5047,8 @@ static void draw_mix(void)
 {
     static float m_db[NALLTRK], m_hold[NALLTRK];
     static uint32_t m_hold_ms[NALLTRK], m_last;
-    static const char *const SHORT_NM[NALLTRK] = {"1", "2", "3", "4", "5", "6", "7", "8", "CO", "TH", "F1", "F2", "WV"};
-    static const int8_t COL[NALLTRK] = {0, 1, 2, 3, 4, 5, 6, 7, -1, -1, 8, 9, -1};   /* the strips' places (the conductor and the
+    static const char *const SHORT_NM[NALLTRK] = {"1", "2", "3", "4", "5", "CO", "TH", "F1", "F2"};
+    static const int8_t COL[NALLTRK] = {0, 1, 2, 3, 4, -1, -1, 5, 6};   /* the strips' places (the conductor and the
                                                                               * throws make no sound: none) */
     uint32_t now = plat_ms(), dt = now - m_last;
     int sel = sel_trk();
@@ -5571,7 +5082,7 @@ static void draw_mix(void)
     for (int t = 0; t < NALLTRK; t++) {
         if (COL[t] < 0)
             continue;
-        int32_t x = 4 + COL[t] * 18 + (COL[t] >= 8 ? 14 : 0);
+        int32_t x = 4 + COL[t] * 18 + (COL[t] >= NTRK ? 14 : 0);
         int muted = t < NSEQT && (seq.mute >> t & 1u), sound = t < NTRK || is_fx(t);
         uint16_t ink = muted ? K_FAINT : trk_ink(t);      /* (muted: its steps, grey) */
         text_c(x + 7, 94, &FONT_XS, SHORT_NM[t], t == sel ? K_TEXT : muted || !sound ? K_FAINT : K_DIM);
@@ -5738,7 +5249,7 @@ static void draw_setup(void)
     if (LARGE) {                                     /* large type: the rows the knobs under them do not show (clock,
                                                       * notes, theme: their values right there), at 15 px */
         setup_f = &LFONT_S;
-        setup_row(1, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
+        setup_row(1, "tempo from", seq.ext ? "MIDI clock in" : "COLD");
         setup_row(17, "USB audio", USBA_NAME[proj.usb_full & 1u]);
         setup_row(33, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: SAVE saves" : "on");
         setup_row(49, "BT audio", ta);
@@ -5747,7 +5258,7 @@ static void draw_setup(void)
         cv_blit(0, MAIN_Y);
         return;
     }
-    setup_row(2, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
+    setup_row(2, "tempo from", seq.ext ? "MIDI clock in" : "COLD");
     setup_row(16, "clock", CLOCK_ROW[proj.clock % SEQ_NCLK]);
     setup_row(30, "sends notes", proj.send_notes ? "yes" : "no");
     setup_row(44, "USB audio", USBA_NAME[proj.usb_full & 1u]);
@@ -5828,7 +5339,7 @@ static void ink_follow(void)                         /* another track: its ink, 
 {
     int trk = sel_trk();
     const bands_t *b = &BANDS[!loom_type(large_type()) ? 0     /* (large type: its faces there, gfx_loom.c) */
-                              : steps_page(ui.page) && is_seqt(trk) && trk != AUX_WEAVE ? 2 : 1];
+                              : steps_page(ui.page) && is_seqt(trk) ? 2 : 1];
     theme = THEME_OF_PROJ();
     if (k_th == theme && k_now == trk_ink(trk) && band == b)
         return;
@@ -5842,125 +5353,6 @@ static void ink_follow(void)                         /* another track: its ink, 
     k_mid = ink_mix(k_now, theme->mid);
     for (uint32_t i = 0; i < sizeof ui.sig / sizeof ui.sig[0]; i++)
         ui.sig[i] ^= 0x5A5A5A5Au;
-}
-/* ARP's Weave page: the track, what it weaves with and how, in words with their names, and its first bar three
- * ways: its own steps, the other pattern's, and what plays woven (each step in the ink of the pattern it came from) */
-static void weave_row(int32_t y, const char *label, uint16_t lc, const tpat_t *p, const tpat_t *a,
-                      const tpat_t *b, int ka, int kb, int rule, uint16_t ca, uint16_t cb, int bar)
-{
-    cv_text(8, y - LARGE, LY(&FONT_XS, F_CAP), label, lc);   /* (large type: the label small, as the cells) */
-    for (int j = 0; j < 16; j++) {               /* the bar shown (OCT): steps bar * 16 .., a shorter pattern round again */
-        int32_t x = 54 + j * 11;
-        int i = bar * 16 + j;
-        step_t w;
-        const step_t *st = &w, *own = &a->st[i % (a->len ? a->len : 1)];
-        uint16_t c;
-        if (p)
-            st = &p->st[i % (p->len ? p->len : 1)];
-        else
-            weave_step(a, ka, b, kb, rule, (uint32_t)i, &w);
-        c = step_empty(st) ? K_PANEL : p ? (p == a ? ca : cb) : memcmp(&w, own, sizeof w) ? cb : ca;
-        cv_round(x, y + 1, 9, 10, 2, c);
-        if (j % 4 == 0 && step_empty(st))
-            cv_rect(x + 4, y + 9, 1, 2, K_LINE);     /* (the beats, where nothing is) */
-    }
-}
-static void draw_weave(void)
-{
-    int trk = sel_trk(), f = wv_from(trk), r = wv_rule(trk);
-    uint32_t h = hash_u(hash_u(2166136261u, 0x57u), (uint32_t)trk | (uint32_t)f << 4 | (uint32_t)wv_pat(trk) << 8 |
-                                          (uint32_t)r << 12 | (uint32_t)cur_pat(trk) << 16 |
-                                          (uint32_t)((seq.wv_live | seq.wv_rec) >> trk & 1u) << 24 |
-                                          (uint32_t)wv_cued(trk) << 25 | (uint32_t)ui.bar << 26);
-    char t[56], an[12], bn[12], *e;
-    if (f)
-        h = hash_pat(hash_pat(h, tpat(trk)), &pats.pat[f - 1][wv_pat(trk)]);
-    if (!begin_main(h))
-        return;
-    if (!f) {
-        s_cat(s_cat(t, TRACK_NAME[trk]), " weaves with nothing yet");
-        text_c(120, LY(26, 10), text_w(&FONT_B, t) <= 228 ? &FONT_B : &LFONT_B, t, K_TEXT);   /* ("COND ...": a size down) */
-        text_c(120, LY(54, 42), LY(&FONT_S, F_CAP), "black key: the track to weave in", K_DIM);
-        text_c(120, LY(72, 56), LY(&FONT_S, F_CAP), "white key: its pattern", K_DIM);
-        cv_blit(0, MAIN_Y);
-        return;
-    }
-    num_s((uint32_t)cur_pat(trk) + 1u, s_cat(s_cat(an, TRACK_NAME[trk]), " P"));   /* "T2 P1", "T1 P3" */
-    num_s((uint32_t)wv_pat(trk) + 1u, s_cat(s_cat(bn, TRACK_NAME[f - 1]), " P"));
-    if (f - 1 == trk)                                /* its own patterns: "T2 weaves P1 with P3" */
-        e = s_cat(s_cat(s_cat(s_cat(t, TRACK_NAME[trk]), " weaves "), an + s_len(TRACK_NAME[trk]) + 1), " with ");
-    else
-        e = s_cat(s_cat(t, TRACK_NAME[trk]), " weaves with ");
-    s_cat(e, f - 1 == trk ? bn + s_len(TRACK_NAME[trk]) + 1 : TRACK_NAME[f - 1]);
-    if (!LARGE)                                      /* (large type: the header and the knobs say it) */
-        cv_text(8, 2, &FONT_B, t, K_TEXT);
-    e = s_cat(s_cat(t, "by "), WEAVE_NAME[r]);
-    e = s_cat(e, ": ");
-    if (r == WV_BARS || r == WV_STEPS) {             /* in words, with their names */
-        e = s_cat(s_cat(e, r == WV_BARS ? "a bar of " : "a step of "), an);
-        s_cat(s_cat(e, ", then "), bn);
-    } else
-        s_cat(s_cat(s_cat(s_cat(e, r == WV_RHYTHM ? an : bn), "'s rhythm, "), r == WV_RHYTHM ? bn : an), "'s pitch");
-    text_fit(8, LY(26, 2), LY(&FONT_XS, F_CAP), t, 228, K_NOW);   /* (large type: an explanation's size) */
-    {
-        const tpat_t *a = tpat(trk), *b = &pats.pat[f - 1][wv_pat(trk)];
-        uint16_t ca = trk_ink(trk), cb = f - 1 == trk || trk_ink(f - 1) == ca ? K_TEXT : trk_ink(f - 1);
-        int ka = wv_kind(trk), kb = wv_kind(f - 1), la = a->len > b->len ? a->len : b->len;
-        int nb = (la + 15) / 16, bar = ui.bar < nb ? ui.bar : nb - 1;
-        /* (large type: the rows 12 apart in the shorter band, the status line under them) */
-        weave_row(LY(44, 20), an, K_DIM, a, a, b, ka, kb, r, ca, cb, bar);
-        weave_row(LY(58, 33), bn, K_DIM, b, a, b, ka, kb, r, ca, cb, bar);
-        cv_rect(54, LY(73, 46), 175, 1, K_LINE);
-        weave_row(LY(77, 49), "plays", K_TEXT, 0, a, b, ka, kb, r, ca, cb, bar);
-        if (nb > 1) {                                /* more than a bar: which one, OCT for the others */
-            char bt[16];
-            num_s((uint32_t)nb, s_cat(num_s((uint32_t)bar + 1u, s_cat(bt, "bar ")), " of "));
-            cv_text(232 - text_w(F_CAP, bt), LY(98, 64), F_CAP, bt, K_DIM);
-        }
-    }
-    if (!wv_cued(trk))
-        s_cat(t, "on: it plays woven");
-    else if ((seq.wv_live | seq.wv_rec) >> trk & 1u)
-        s_cat(t, "weaving now");
-    else
-        num_s((uint32_t)trk + 1u, s_cat(t, "plays while the WEAVE track's white key ")), s_cat(t + s_len(t), " is on");
-    text_fit(8, LY(98, 64), F_CAP, t, LY(228, 160), !wv_cued(trk) || (seq.wv_live | seq.wv_rec) >> trk & 1u ? K_NOW : K_DIM);
-    cv_blit(0, MAIN_Y);
-}
-/* the WEAVE track's page: the ten tracks it weaves (white keys 1-10), each with its weave, lit while it weaves */
-static void draw_weave_play(void)
-{
-    uint32_t on = (uint32_t)(seq.wv_live | seq.wv_rec | seq.wv_always);
-    uint32_t h = hash_u(hash_u(2166136261u, 0x5Au), on | (uint32_t)proj.trk[AUX_WEAVE].par[TP_E1] << 16);
-    int any = 0;
-    for (int t = 0; t < NSEQT; t++)
-        h = hash_u(h, (uint32_t)wv_from(t) | (uint32_t)wv_pat(t) << 8 | (uint32_t)wv_rule(t) << 12);
-    if (!begin_main(h))
-        return;
-    for (int t = 0; t < NSEQT; t++) {
-        /* (large type: the cells 32 high, the name at 15 px and what it weaves with under it; the rule on ARP's Weave) */
-        int32_t x = 6 + (t % 5) * 46, y = LY(2 + (t / 5) * 48, (t / 5) * 34);
-        int f = wv_from(t), lit = on >> t & 1u;
-        char wt[16];
-        cv_round(x, y, 42, LY(46, 32), 5, lit ? K_NOW : f ? K_PANEL2 : K_PANEL);
-        text_c(x + 21, LY(y + 3, y + 1), LARGE ? (t < NTRK ? &LFONT_S : &LFONT_XS) : t < NTRK ? &FONT_S : &FONT_XS,
-               TRACK_NAME[t], lit ? K_BG : f ? K_TEXT : K_FAINT);
-        if (f) {                                 /* "+T1 P3" (its own: "+P3"), the rule */
-            if (t == f - 1)
-                num_s((uint32_t)wv_pat(t) + 1u, s_cat(wt, "+P"));
-            else
-                num_s((uint32_t)wv_pat(t) + 1u, s_cat(s_cat(s_cat(wt, "+"), TRACK_NAME[f - 1]), " P"));
-            text_c(x + 21, LY(y + 18, y + 17), F_CAP, wt, lit ? K_BG : K_DIM);
-            if (!LARGE)
-                text_c(x + 21, y + 29, &FONT_XS, WEAVE_NAME[wv_rule(t)], lit ? K_BG : K_DIM);
-            any = 1;
-        } else
-            text_c(x + 21, LY(y + 22, y + 16), F_CAP, "-", K_FAINT);
-    }
-    cv_text(8, LY(99, 66), F_CAP, !any ? "no weaves yet: set one on a track's ARP"
-                             : proj.trk[AUX_WEAVE].par[TP_E1] ? "latch: a tap on, a tap off" : "a key held: that track weaves",
-            K_DIM);
-    cv_blit(0, MAIN_Y);
 }
 static void draw_page(void)
 {
@@ -5996,8 +5388,6 @@ static void draw_page(void)
             draw_brain();
         else if (trk == AUX_PUNCH)
             draw_punch();
-        else if (trk == AUX_WEAVE)
-            draw_weave_play();
         else if (is_aux(trk))
             draw_fxtrack(trk);
         else if (ui.page == P_ENGINE || (is_drum(trk) && (ui.page == P_PLAY || ui.page == P_SUB)))
@@ -6023,7 +5413,6 @@ static void draw_page(void)
         break;
     case P_MIX: draw_mix(); break;
     case P_THROWS: draw_punch(); break;
-    case P_WEAVE: draw_weave(); break;
     case P_MASTER: case P_MASTER3: draw_master(); break;
     case P_MASTER2: draw_master_color(); break;
     case P_GLFO: draw_glfo(); break;

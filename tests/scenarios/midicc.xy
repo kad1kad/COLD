@@ -118,19 +118,19 @@ midi B8 5D 26
 midi B9 11 27
 midi B9 5D 28
 wait 40
-expect par11.48 33
-expect par11.1 34
-expect epar11.1 34
-expect par11.4 35
-expect par11.17 36
-expect par11.19 37
-expect par11.23 38
-expect par12.2 39
+expect par8.48 33
+expect par8.1 34
+expect epar8.1 34
+expect par8.4 35
+expect par8.17 36
+expect par8.19 37
+expect par8.23 38
+expect par9.2 39
 # CC 93 on FX II's channel: nothing (FX II has no feed; only FX I's goes into FX II)
-param 12 23 50
+param 9 23 50
 midi B9 5D 7F
 wait 40
-expect par12.23 50
+expect par9.23 50
 # the master on 11: level, EQ, a switch scaled (color type 0..2), release
 midi BA 07 29
 midi BA 10 2A
@@ -171,12 +171,12 @@ expect lane 2 1 48 0
 expect lane 3 1 49 0
 
 # channels 12-16 reach the track playing (inst_trk()), not just the one selected: play T3, then select an aux track
-# (spin, not turn: a step at a time through T4..T8 would make T8 last_inst, not T3)
+# (spin, not turn: a step at a time through T4 and T5 would make T5 last_inst, not T3)
 projnew
 spin ALGO 2
 expect trk 3
-spin ALGO 6
-expect trk 9
+spin ALGO 3
+expect trk 7
 # eng_midi_trk follows inst_trk() once a frame (ui_frame)
 wait 20
 midi 9B 3C 64

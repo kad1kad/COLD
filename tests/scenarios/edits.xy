@@ -119,7 +119,7 @@ projnew
 wait 40
 expect par1.51 1
 expect par2.51 1
-expect par8.51 1
+expect par5.51 1
 expect sendnotes 1
 expect dirty 1
 tap SAVE

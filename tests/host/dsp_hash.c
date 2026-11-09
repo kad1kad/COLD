@@ -13,7 +13,6 @@
 #include "fx.h"
 #include "fastmath.h"
 #include "breaks.h"                           /* the break pack as the user bank */
-#include "bass303.h"                          /* the acid engine, on its own */
 #include "d909.h"                             /* d909_res_get: the 909 cymbals' samples */
 
 #define N 256
@@ -111,7 +110,7 @@ static void synth_cases(void)
     for (k = 0; k < NPRESETS; k++) {
         int t;
         for (t = 0; t < NTRK; t++)
-            sound_default(par[t], EG_KNIT);
+            sound_default(par[t], EG_RAYON);
         memcpy(par[0], PRESETS[k].par, NTP_SOUND);
         memcpy(par[1], PRESETS[(k + 7) % NPRESETS].par, NTP_SOUND);
         snprintf(name, sizeof name, "preset %d %s", k, PRESETS[k].name);
@@ -174,79 +173,6 @@ static void drum_cases(void)
 
 /* ---- the effects and the master ---- */
 static int16_t dly_l[FX_DLY_LEN], dly_r[FX_DLY_LEN], rv[FX_RV_LEN];
-/* the acid engine (dsp/bass303.c) on its own: each knob at its ends with the rest at their defaults, both waves,
- * the drives, the overload guard's lite mode, the pitch multiplier; a phrase of notes with accents and slides, a
- * rest long enough to go idle, a note after it */
-static bass303_t acid;
-static float abuf[BASS303_MAX_BLOCK];
-static void acid_phrase(int lite)
-{
-    static const int8_t NOTE[] = {36, 48, 39, 41, 36, 43, 46, 48}, ACC[] = {1, 0, 0, 1, 0, 0, 1, 0},
-                        SLD[] = {0, 1, 0, 0, 1, 1, 0, 0};
-    int i, b;
-    bass303_set_lite(&acid, lite);
-    for (i = 0; i < 8; i++) {
-        bass303_note_on(&acid, NOTE[i], ACC[i], SLD[i]);
-        for (b = 0; b < 20; b++) {
-            if (b == 14 && !SLD[(i + 1) & 7])
-                bass303_note_off(&acid);
-            bass303_render(&acid, abuf, b & 1 ? 37 : 91);   /* (blocks not a multiple of the sub-blocks) */
-            hash_buf(abuf, b & 1 ? 37 : 91);
-        }
-    }
-    bass303_note_off(&acid);
-    for (b = 0; b < 200; b++) {                           /* past the idle hold-off (500 ms) */
-        bass303_render(&acid, abuf, 128);
-        hash_buf(abuf, 128);
-    }
-    bass303_note_on(&acid, 40, 1, 0);
-    for (b = 0; b < 40; b++) {
-        bass303_render(&acid, abuf, 128);
-        hash_buf(abuf, 128);
-    }
-}
-static void acid_case(const char *name, int k, int v, int wave, int drv, float pmul)
-{
-    char nm[64];
-    int lite;
-    for (lite = 0; lite < 2; lite++) {
-        bass303_init(&acid);
-        bass303_set(&acid, BASS303_WAVE, wave);
-        bass303_set(&acid, BASS303_DRVTYPE, drv);
-        bass303_set(&acid, BASS303_DRIVE, drv ? 90 : 0);
-        if (k >= 0)
-            bass303_set(&acid, k, v);
-        bass303_pitch(&acid, pmul);
-        hash_init();
-        acid_phrase(lite);
-        snprintf(nm, sizeof nm, "acid %s%s", name, lite ? " lite" : "");
-        out(nm);
-    }
-}
-static void acid_cases(void)
-{
-    static const char *const DRV[] = {"off", "soft", "rat"};
-    char name[64];
-    int w, d, k;
-    for (w = 0; w < 2; w++)
-        for (d = 0; d < 3; d++) {
-            snprintf(name, sizeof name, "%s %s", w ? "sqr" : "saw", DRV[d]);
-            acid_case(name, -1, 0, w, d, 1.0f);
-            for (k = 0; k < BASS303_NPARAMS; k++) {
-                if (k == BASS303_WAVE || k == BASS303_DRVTYPE)
-                    continue;
-                snprintf(name, sizeof name, "%s %s k%d 0", w ? "sqr" : "saw", DRV[d], k);
-                acid_case(name, k, 0, w, d, 1.0f);
-                snprintf(name, sizeof name, "%s %s k%d max", w ? "sqr" : "saw", DRV[d], k);
-                acid_case(name, k, bass303_max(k), w, d, 1.0f);
-            }
-            snprintf(name, sizeof name, "%s %s pitch 0.5", w ? "sqr" : "saw", DRV[d]);
-            acid_case(name, -1, 0, w, d, 0.5f);
-            snprintf(name, sizeof name, "%s %s pitch 1.5", w ? "sqr" : "saw", DRV[d]);
-            acid_case(name, -1, 0, w, d, 1.4983f);
-        }
-}
-
 /* the 909 cymbals on their samples (the resource region as the FM-1 holds it: build/gen/res909.bin): each through
  * every shape, with and without drive, at the pitch's ends and middle, to past its envelope's end and hit again */
 static uint8_t res909[96 * 1024];
@@ -362,7 +288,6 @@ int main(void)
     synth_cases();
     drum_cases();
     smp_cases();
-    acid_cases();
     fx_cases();
     master_cases();
     return 0;

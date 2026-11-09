@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-// LOOM-8's user sample bank in the browser: tools/loom_samples.py and tools/sampleio.py (its numpy path) as plain
+// COLD's user sample bank in the browser: tools/loom_samples.py and tools/sampleio.py (its numpy path) as plain
 // functions, so the samples page (app/web/samples/index.html) builds the bank the command line builds: the same
 // layout and header byte for byte, the same sound within a rounding (numpy sums a convolution in its own order).
 // tests/host/samples_web.mjs checks it against loom_samples.py. Copyright (C) 2026 Charles Vestal.
@@ -474,14 +474,14 @@ export class Link {
   }
   close() { this.input.onmidimessage = null; }
 }
-// the FM-1 running LOOM-8 among midi's ports (it answers SB_SINFO); null: none
+// the FM-1 running COLD among midi's ports (it answers SB_SINFO); null: none
 export async function findLink(midi, wait = 1000) {
   // the names the backup page and the installer take (Windows may call the port "USB-MIDI", or keep an earlier name,
-  // and names the two ends apart: "LOOM-8 FM-1" in, "MIDIOUT2 (LOOM-8 FM-1)" out); never probe other gear
+  // and names the two ends apart: "COLD FM-1" in, "MIDIOUT2 (COLD FM-1)" out); never probe other gear
   const outs = [...midi.outputs.values()].filter((o) => o.state !== "disconnected");
   const ins = [...midi.inputs.values()].filter((i) => i.state !== "disconnected" &&
     /loom|fm-?1|felucca|composite|sinco|usb-midi/i.test(i.name || ""))
-    .sort((a, b) => /loom/i.test(b.name) - /loom/i.test(a.name));
+    .sort((a, b) => /cold/i.test(b.name) - /cold/i.test(a.name));
   const base = (s) => (s || "").replace(/\s+\d+$/, "").replace(/^MIDI(?:IN|OUT)\d*\s*\((.*)\)$/i, "$1");
   for (const input of ins) {
     const same = outs.filter((o) => base(o.name) === base(input.name));
@@ -509,15 +509,15 @@ export async function readBytes(link, off, n, onPart) {
   }
   return out;
 }
-// the bank's image as the FM-1 holds it (header + data), or null when it holds none; throws on an old LOOM-8
+// the bank's image as the FM-1 holds it (header + data), or null when it holds none; throws on an old COLD
 export async function readBank(link, onPart) {
   const info = await link.req(15, [0]);
-  if (info[0] !== 2) throw new Error("This LOOM-8 is too old for this page. Update it from the install page, then connect again.");
+  if (info[0] !== 2) throw new Error("This COLD is too old for this page. Update it from the install page, then connect again.");
   if (!info[5]) return null;
   let hdr;
   try { hdr = await readBytes(link, 0, HDR_USED); } catch (e) {
     if (/stopped answering/.test(e.message))
-      throw new Error("This LOOM-8 can't send its samples back to the page. Update it from the install page (0.5-beta or later), then connect again.");
+      throw new Error("This COLD can't send its samples back to the page. Update it from the install page (0.5-beta or later), then connect again.");
     throw e;
   }
   const h = parseHeader(hdr);

@@ -77,7 +77,7 @@ tap PLAY
 tap GLO
 key b2 down
 wait 900
-expect mute 1019
+expect mute 123
 shot mix_solo.png
 key b2 up
 wait 40
@@ -90,10 +90,10 @@ shot mix_mute.png
 key b1 down
 key b2 down
 wait 900
-expect mute 1017
+expect mute 121
 key b1 up
 wait 40
-expect mute 1019
+expect mute 123
 key b2 up
 wait 40
 expect mute 2

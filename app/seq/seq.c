@@ -258,26 +258,9 @@ static int loop_from(const tpat_t *p)
     pat_loop(p, &f, &e);
     return f;
 }
-static int step_kind(const seq_t *s, int t) { return t == AUX_PUNCH ? WK_FX : t < NTRK && s->par[t][TP_ENGINE] == EG_DRUMLINE ? WK_KIT : WK_MEL; }
-/* the step the track plays at p: its own, or (weaving) its pattern crossed with the one it weaves with */
-static const step_t *weave_at(seq_t *s, int t, const tpat_t *tp, int p)
-{
-    seq_trk_t *tr = &s->t[t];
-    int f = s->wv_from[t] - 1, wp = s->wv_pat[t] % NPATT;
-    tr->wv_on = 0;
-    if (!((s->wv_live | s->wv_rec | s->wv_always) >> t & 1u) || f < 0 || f >= NSEQT || (f == t && wp == s->ppat[t]))
-        return &tp->st[p];
-    tr->wv_on = 1;
-    weave_step(tp, step_kind(s, t), &s->P->pat[f][wp], step_kind(s, f), s->wv_rule[t] % NWV,
-               (uint32_t)tr->pass * (uint32_t)loop_len(tp) + (uint32_t)(p > loop_from(tp) ? p - loop_from(tp) : 0), &tr->wv_st);
-    return &tr->wv_st;
-}
 static int is_drum(const seq_t *s, int t) { return t < NTRK && s->par[t][TP_ENGINE] == EG_DRUMLINE; }
-static int is_slice(const seq_t *s, int t) { return t < NTRK && s->par[t][TP_ENGINE] == EG_SLICE; }
-/* a percussive track for the throws: the kit, or a slice track (a break's parts). A slice track plays notes (a
- * note picks a slice) but takes the drums' throws: their octave, the drum fills on its own slices (fill_slices),
- * an octave up (the engine raises its pitch: the note would pick another slice) */
-static int is_perc(const seq_t *s, int t) { return is_drum(s, t) || is_slice(s, t); }
+/* a percussive track for the throws: the kit */
+static int is_perc(const seq_t *s, int t) { return is_drum(s, t); }
 static int ts_halves(const tpat_t *p) { return TS_HALVES[p->scale < NTS ? p->scale : TS_1]; }
 
 float seq_tempo(const seq_t *s) { return s->ext ? s->ext_bpm : s->bpm; }
@@ -825,7 +808,7 @@ static int step_note(seq_t *s, int t, int note, int tv)
         note = brain_note(s, t, note);
     if (tv >= 2)
         note = tonal(s, t, note, tv);
-    if (fx_on(s, t, PX_OCTAVE) && !is_slice(s, t))   /* (a slice track: up, the engine's pitch) */
+    if (fx_on(s, t, PX_OCTAVE))
         note -= 12;
     return clamp_note(note);
 }
@@ -1391,7 +1374,6 @@ static void scene_read(seq_t *s, int k, uint8_t *next)
     s->brain_scale = sc->brain_scale < NBS ? sc->brain_scale : BS_MAJOR;
     s->brain_deg = sc->brain_deg;
     brain_chord_from_deg(s);              /* a scene stores the degree, not the chord: the triad on it */
-    s->wv_ppat = (uint8_t)(sc->weave % NPATT);
     s->scene = (uint8_t)k;
 }
 
@@ -1922,10 +1904,10 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
         rep = tr->stall_kind == SC_PULSE;
         retrig = rep;
         lp = tr->stall_p;
-        st = weave_at(s, t, tp, lp);
+        st = &tp->st[lp];
     } else {                          /* (a kit's pulses and holds are its sounds': kit_step) */
         lp = p;
-        st = weave_at(s, t, tp, p);
+        st = &tp->st[p];
     }
     if (tr->skip_pos != p)
         skip_clear(tr);
@@ -2047,7 +2029,7 @@ next:
 static void fire_sub(seq_t *s, int t, const seq_sink_t *o)
 {
     seq_trk_t *tr = &s->t[t];
-    const step_t *st = tr->wv_on ? &tr->wv_st : &tpat(s, t)->st[tr->pos];
+    const step_t *st = &tpat(s, t)->st[tr->pos];
     uint32_t carry = tr->sub_to_next < SEQ_DUE ? tr->sub_to_next : 0;
     if (t < NTRK && is_drum(s, t)) {  /* a kit: the sounds whose ratchet is due, each by its own count */
         uint32_t due = 0, m;
@@ -2100,39 +2082,7 @@ static void fill_collect(seq_t *s, int t)
         }
 }
 
-/* a slice track's fill sounds: its pattern's own slices in the kit's places, fill_notes[0] the kick (the note on
- * a downbeat: sixteenth 0 or 8 of the bar), [1] the snare (a backbeat: 4 or 12), [2] the hat (an off-beat eighth:
- * 2, 6, 10, 14); a place the pattern leaves empty takes its lowest, middle or highest note. nfill 0: an empty
- * pattern (its fills are silent) */
-static void fill_slices(seq_t *s, int t)
-{
-    seq_trk_t *tr = &s->t[t];
-    const tpat_t *tp = tpat(s, t);
-    uint8_t got[3] = {0, 0, 0};
-    int len = pat_len(tp), p, i, n;
-    fill_collect(s, t);
-    if (!tr->nfill)
-        return;
-    for (p = 0; p < len; p++) {
-        int six = step_six(tp, p), k, lo = 0;
-        if (six < 0 || (six & 1))
-            continue;
-        k = (six & 7) == 0 ? 0 : (six & 7) == 4 ? 1 : 2;
-        if (got[k])
-            continue;
-        for (i = 0; i < SN; i++)
-            if ((n = tp->st[p].note[i]) && (!lo || n < lo))
-                lo = n;
-        got[k] = (uint8_t)lo;
-    }
-    n = tr->nfill;
-    tr->fill_notes[0] = got[0] ? got[0] : tr->fill_notes[0];
-    tr->fill_notes[1] = got[1] ? got[1] : tr->fill_notes[n / 2];
-    tr->fill_notes[2] = got[2] ? got[2] : tr->fill_notes[n - 1];
-    tr->nfill = 3;
-}
-
-/* a drum fill's hit: the kit's sound (0 kick, 1 snare, 2 hat), or a slice track's slice in its place */
+/* a drum fill's hit: the kit's sound (0 kick, 1 snare, 2 hat) */
 static void fill_hit(seq_t *s, int t, int sound, int vel, const seq_sink_t *o)
 {
     uint32_t half = six_q8(s) / 2u;
@@ -3111,9 +3061,7 @@ static void punch_update(seq_t *s, const seq_sink_t *o)
         }
         if (fl) {
             int kind = fx_on(s, t, PX_BUILD) ? 1 : fx_on(s, t, PX_FLOOR) ? 2 : 3;
-            if (!tr->fill_on && is_slice(s, t))
-                fill_slices(s, t);
-            else if (!tr->fill_on && !is_drum(s, t))
+            if (!tr->fill_on && !is_drum(s, t))
                 fill_collect(s, t);
             if (!tr->fill_on || kind != tr->fill_kind)
                 tr->fill_i = 0;
@@ -3210,44 +3158,6 @@ static void do_stop(seq_t *s, const seq_sink_t *o)
 }
 
 /* the sixteenth: the metronome, the count-in, the bar, the fills */
-/* the WEAVE track, a sixteenth: its step's tracks weave for the step's length (wv_rec); recording, what is held or
- * latched (wv_live) is written: a weave starting marks this step, one going on lengthens the step it started on */
-static void weave_tick(seq_t *s)
-{
-    wvpat_t *wp = &s->P->weave[s->wv_ppat % NPATT];
-    int len = wp->len < 1 ? 16 : wp->len > NSTEP ? NSTEP : wp->len, pos = (int)(s->step_tick % (uint32_t)len), t;
-    wv_step_t *st = &wp->st[pos];
-    uint32_t m = wv_mask(st), rec = 0;
-    int writing = s->rec && s->playing && !s->count_in && !s->rec_wait;
-    for (t = 0; t < NSEQT; t++) {
-        if (s->wv_left[t])
-            s->wv_left[t]--;
-        if (m >> t & 1u) {
-            int l = st->len ? st->len : 1;
-            if (l > s->wv_left[t])
-                s->wv_left[t] = (uint8_t)l;
-        }
-        if (s->wv_left[t])
-            rec |= 1u << t;
-        if (writing && (s->wv_live >> t & 1u)) {
-            if (s->wv_rec_at[t] >= NSTEP) {
-                s->wv_rec_at[t] = (uint8_t)pos;
-                m |= 1u << t;
-                st->m1 = (uint8_t)(m >> 8);
-                st->m0 = (uint8_t)m;
-                if (!st->len)
-                    st->len = 1;
-            } else {
-                wv_step_t *s0 = &wp->st[s->wv_rec_at[t]];
-                if (s0->len < len)
-                    s0->len++;
-            }
-        } else
-            s->wv_rec_at[t] = 0xFF;
-    }
-    s->wv_rec = (uint16_t)rec;
-}
-
 static void six_tick(seq_t *s, const seq_sink_t *o)
 {
     int click = s->metronome == 2 || (s->metronome == 1 && (s->rec || s->count_in));
@@ -3302,7 +3212,6 @@ static void six_tick(seq_t *s, const seq_sink_t *o)
     if (click && (s->bar16 & 3) == 0 && o->metro)
         o->metro(o->ctx, s->bar16 == 0);
     fire_fills(s, o);
-    weave_tick(s);
     s->bar_six++;
     s->step_tick++;
     s->six_to_next = s->ext ? NEVER : carry + six_q8(s);
@@ -3370,7 +3279,6 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
         tr->bq_go = 0xFF;
         s->ppat[t] = P->scene[0].pat[t] < NPATT ? P->scene[0].pat[t] : 0;
         s->pcue[t] = 0xFF;
-        s->wv_rec_at[t] = 0xFF;
     }
     for (t = 0; t < NTRK; t++) {
         s->player[t].arp_to_next = NEVER;
@@ -3389,7 +3297,6 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
     for (int k = 0; k < NKITM; k++)
         s->kmute[k] = P->scene[0].kmute[k];
     s->brain_scale = BS_MAJOR;
-    s->wv_ppat = (uint8_t)(P->scene[0].weave % NPATT);
     s->six_to_next = NEVER;
     s->clk_to_next = 0;
     bar_len_update(s);
@@ -3469,9 +3376,6 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
     if (s->req_stop) {
         s->req_stop = 0;
         s->req_start = s->req_cont = 0;
-        s->wv_rec = 0;                /* (the recorded weaves end with the transport) */
-        for (t = 0; t < NSEQT; t++)
-            s->wv_left[t] = 0, s->wv_rec_at[t] = 0xFF;
         if (s->playing)
             do_stop(s, o);
         else                          /* stopped already: the players let go (hold, latched arps) */

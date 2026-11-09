@@ -13,7 +13,7 @@
   loom_samples.py syx [--rate R] OUT.syx SPEC ...     no device: the SysEx frames "load" would send (and "info"),
                                                 into OUT.syx (the host simulator plays them through: "upload OUT.syx")
   loom_samples.py backup OUT.bin                the bank as it is, read back from the FM-1, into OUT.bin
-  loom_samples.py restore IN.bin                put a backup (or a "build" image, or the web backup page's .loom8
+  loom_samples.py restore IN.bin                put a backup (or a "build" image, or the web backup page's .cold
                                                 file: its samples) back: the bank replaced
   loom_samples.py extract DUMP.bin OUT.bin      no device: the bank out of a full flash dump (1 MB: fm1t.py dump,
                                                 fm1_rescue.py), into OUT.bin for "restore"
@@ -382,7 +382,7 @@ def checked(img, what):
 
 
 def bank_in(data, what):
-    """a bank image, or the samples section of a .loom8 file (the web backup page's: fm1_backup.py split) -> the
+    """a bank image, or the samples section of a .cold file (the web backup page's: fm1_backup.py split) -> the
     bank's image, checked"""
     if data[:4] != struct.pack("<I", sio.BANK_MAGIC) and len(data) > 16:
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "base" / "tools"))

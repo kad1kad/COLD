@@ -15,13 +15,13 @@
                                 Edge, Web MIDI)
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
                                 remove; loom_samples.js inlined)
-  firmware/loom-VERSION.fwsc    the package the installer writes; also the download
-  firmware/loom-VERSION-res.bin the resource region beside it (the 909 cymbals), which the installer writes after it
+  firmware/cold-VERSION.fwsc    the package the installer writes; also the download
+  firmware/cold-VERSION-res.bin the resource region beside it (the 909 cymbals), which the installer writes after it
   firmware/m-bootloader-X.Y.fwsc  m-bootloader (MIT, fm1-base's web/m-bootloader), offered after the firmware
 
-  tools/make_pages.py app/build/loom-0.1.fwsc 0.1 OUT_DIR
+  tools/make_pages.py app/build/cold-0.1.fwsc 0.1 OUT_DIR
 
-The package must be a release build (./build.sh --release X.Y): its identity, FM-1_10XXYYZZ, is what
+The package must be a release build (./build.sh --release X.Y): its identity, FM-1_44XXYYZZ, is what
 the installer checks the download against and what the FM-1 reports after the install."""
 import hashlib
 import html
@@ -193,11 +193,11 @@ def main(pkg, version, out):
     pkg, out = Path(pkg), Path(out)
     raw = pkg.read_bytes()
     product = product_of(raw)
-    if not re.fullmatch(r"FM-1_10\d{6}", product):
+    if not re.fullmatch(r"FM-1_44\d{6}", product):
         raise SystemExit(f"{pkg}: identity {product!r}: make a release build (./build.sh --release X.Y)")
     if b"FELUCCA-LOADER-1" not in raw:
         raise SystemExit(f"{pkg}: no update loader in it")
-    name = f"loom-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}.fwsc"
+    name = f"cold-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}.fwsc"
     if out.exists():
         shutil.rmtree(out)
     for d in ("install", "firmware", "backup", "mirror"):

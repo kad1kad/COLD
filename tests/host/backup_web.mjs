@@ -6,7 +6,7 @@
 //   2. a restore writes it back: the FM-1's bank equals it; an empty bank's restore erases
 //   3. answers lost on the way (a read, a write): asked again, the same result; a late answer is not taken
 //   4. a damaged section: refused before anything is sent; an FM-1 that refuses (rc): said
-//   5. the .loom8 file the page writes (fm1-base's join) is one fm1_backup.py splits and loom_samples.py restores from
+//   5. the .cold file the page writes (fm1-base's join) is one fm1_backup.py splits and loom_samples.py restores from
 //   node tests/host/backup_web.mjs [PYTHON]
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -129,16 +129,16 @@ console.log("backup page: the samples section");
   const page = readFileSync("base/web/backup/index.html", "utf8");
   const m = /\/\/ --- backup protocol: begin[^\n]*\n([\s\S]*?)\/\/ --- backup protocol: end/.exec(page);
   const PORTS_JS = readFileSync("base/web/fm1ports.js", "utf8").replace(/^export\s+/gm, "").replace(/^import .*?;\n/gm, "");
-  const proto = m[1].replace(/\{\{[A-Z_]+\}\}/g, (k) => ({ "{{NAME}}": "LOOM-8", "{{ID}}": "FM-1_10", "{{MAGIC}}": "LM8B",
+  const proto = m[1].replace(/\{\{[A-Z_]+\}\}/g, (k) => ({ "{{NAME}}": "COLD", "{{ID}}": "FM-1_44", "{{MAGIC}}": "CLDB",
     "{{BACKUP_VERSION}}": "1", "{{EXT}}": "loom8", "{{PORTS_JS}}": PORTS_JS })[k] || k);   // (fm1-base make_site's fill)
   const PB = new Function(`"use strict";\n${proto}\nreturn PB;`)();
-  py(`import fm1_backup as B\nopen("${dir}/proj.bin","wb").write(B.build([(1, b"p" * 300), (2, b"")], magic=b"LM8B", version=1))`);
+  py(`import fm1_backup as B\nopen("${dir}/proj.bin","wb").write(B.build([(1, b"p" * 300), (2, b"")], magic=b"CLDB", version=1))`);
   const proj = Uint8Array.from(readFileSync(join(dir, "proj.bin")));
   const file = PB.join(proj, [{ tag: "LSMP", data: got }]);
-  writeFileSync(join(dir, "both.loom8"), file);
+  writeFileSync(join(dir, "both.cold"), file);
   const sp = PB.split(file);
-  check("5. the page's .loom8: its own split gives the backup and the samples", same(sp.image, proj) && same(sp.sections[0].data, got));
-  const out = py(`import fm1_backup as B, loom_samples as L\nd=open("${dir}/both.loom8","rb").read()\nimg, s = B.split(d)\n` +
+  check("5. the page's .cold: its own split gives the backup and the samples", same(sp.image, proj) && same(sp.sections[0].data, got));
+  const out = py(`import fm1_backup as B, loom_samples as L\nd=open("${dir}/both.cold","rb").read()\nimg, s = B.split(d)\n` +
                  `print(img == open("${dir}/proj.bin","rb").read(), s[0][0], L.bank_in(d, "f")[6])`).trim();
   check(`   fm1_backup.py splits it, loom_samples.py restores from it (${out})`, out === "True LSMP 3");
 }

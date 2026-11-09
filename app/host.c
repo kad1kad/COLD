@@ -652,16 +652,6 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
             host_fails++;
         } else
             printf("  ok lane %s %s %s: %d steps\n", t, pt, pn, got);
-    } else if (!strcmp(what, "weave")) {           /* expect weave PAT S MASK LEN: the WEAVE track's step */
-        char pt[16] = {0}, st[16] = {0}, m[16] = {0}, l[16] = {0};
-        const wv_step_t *w;
-        sscanf(plat_host_line, "%*s %*s %15s %15s %15s %15s", pt, st, m, l);
-        w = &pats.weave[(atoi(pt) - 1) & (NPATT - 1)].st[(atoi(st) - 1) & (NSTEP - 1)];
-        if (wv_mask(w) != (uint32_t)strtol(m, 0, 0) || w->len != atoi(l)) {
-            printf("FAIL expect weave %s %s == %s %s, got 0x%03x %d\n", pt, st, m, l, (unsigned)wv_mask(w), w->len);
-            host_fails++;
-        } else
-            printf("  ok weave %s %s == %s %s\n", pt, st, m, l);
     } else if (!strncmp(what, "par", 3) && !strchr(what, '.')) {
         printf("FAIL unknown expect %s\n", what);
         host_fails++;
@@ -690,9 +680,6 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
  *                                tonality jump skiplock skiptrick skip flam) at its value 1..9 (10 random), the black
  *                                keys'; skips' MODE 0 last pass, 1 not the last, 2 only the first. A third replaces the
  *                                second. SOUND (a kit, 1..11): that sound's own, on the step (as a held step's ARP)
- *   weaveset T FROM PAT RULE     track T's weave (ARP's Weave page): with track FROM's pattern PAT by RULE
- *   weave T DST A B RULE         pattern DST of track T = A woven with B (bars steps rhythm pitch: SEL's WEAVE WITH
- *                                COPIED, A the pattern, B the copy)
  *   chance T PAT S PCT|A:B [SOUND]   the step's condition; SOUND (a kit, 1..11): that sound's own
  *   nudge T PAT S TICKS          -12..12 (24 a step)
  *   lock T PAT S PARAM VALUE     a parameter lock on the step (PARAM / VALUE as knob)
@@ -1177,57 +1164,6 @@ static int song_cmd(const char *cmd)
             st->comp2 = (uint8_t)k;
             st->cval2 = (uint8_t)v;
         }
-    } else if (!strcmp(cmd, "weaveset")) {          /* weaveset T FROM PAT RULE: track T weaves with track FROM's PAT */
-        static const char *const RN2[NWV] = {"bars", "steps", "rhythm", "pitch"};
-        int t = atoi(w[1]) - 1, r = -1;
-        for (k = 0; k < NWV; k++)
-            if (n > 4 && ieq(w[4], RN2[k]))
-                r = k;
-        if (n < 5 || t < 0 || t >= NSEQT || r < 0)
-            host_die("weaveset T FROM PAT bars|steps|rhythm|pitch", "");
-        weave_set(t, atoi(w[2]), atoi(w[3]) - 1, r);
-    } else if (!strcmp(cmd, "wvpat")) {             /* wvpat PAT LEN: the WEAVE track's pattern, emptied, LEN sixteenths */
-        int p = atoi(w[1]) - 1, l = n > 2 ? atoi(w[2]) : 16;
-        if (p < 0 || p >= NPATT || (l != 16 && l != 32 && l != 48 && l != 64))
-            host_die("wvpat PAT 16|32|48|64", "");
-        memset(&pats.weave[p], 0, sizeof pats.weave[p]);
-        pats.weave[p].len = (uint8_t)l;
-    } else if (!strcmp(cmd, "wvstep")) {            /* wvstep PAT S TRACKS LEN: a WEAVE step, as REC writes it (TRACKS
-                                                     * 1-8, c = COND, t = THROW, by commas; LEN sixteenths) */
-        int p = atoi(w[1]) - 1, s = atoi(w[2]) - 1;
-        uint32_t m = 0;
-        char b[32], *q;
-        if (n < 5 || p < 0 || p >= NPATT || s < 0 || s >= NSTEP || atoi(w[4]) < 1 || atoi(w[4]) > NSTEP)
-            host_die("wvstep PAT S TRACKS LEN", "");
-        snprintf(b, sizeof b, "%s", w[3]);
-        for (q = strtok(b, ","); q; q = strtok(0, ","))
-            m |= *q == 'c' ? 1u << AUX_BRAIN : *q == 't' ? 1u << AUX_PUNCH
-                 : atoi(q) >= 1 && atoi(q) <= NTRK ? 1u << (atoi(q) - 1) : 0u;
-        if (!m)
-            host_die("no track to weave", w[3]);
-        pats.weave[p].st[s].m0 = (uint8_t)m;
-        pats.weave[p].st[s].m1 = (uint8_t)(m >> 8);
-        pats.weave[p].st[s].len = (uint8_t)atoi(w[4]);
-    } else if (!strcmp(cmd, "sceneweave")) {        /* sceneweave N PAT: scene N plays the WEAVE track's PAT */
-        int sc = atoi(w[1]) - 1;
-        if (sc < 0 || sc >= NSCENE || n < 3 || atoi(w[2]) < 1 || atoi(w[2]) > NPATT)
-            host_die("sceneweave N PAT", "");
-        pats.scene[sc].weave = (uint8_t)(atoi(w[2]) - 1);
-    } else if (!strcmp(cmd, "weave")) {             /* weave T DST A B RULE: pattern DST = A woven with B */
-        static const char *const RN[NWV] = {"bars", "steps", "rhythm", "pitch"};
-        static tpat_t out;
-        tpat_t *d = pat_or_die(w[1], w[2]), *a = pat_or_die(w[1], w[3]), *b = pat_or_die(w[1], w[4]);
-        int r = -1;
-        for (k = 0; k < NWV; k++)
-            if (n > 5 && ieq(w[5], RN[k]))
-                r = k;
-        if (r < 0)
-            host_die("weave T DST A B bars|steps|rhythm|pitch", "");
-        {
-            int tk = atoi(w[1]) - 1, kd = tk == AUX_PUNCH ? WK_FX : host_kit(tk) ? WK_KIT : WK_MEL;
-            pattern_woven(&out, a, kd, b, kd, r);
-        }
-        *d = out;
     } else if (!strcmp(cmd, "chance")) {            /* chance T PAT S PCT|A:B */
         step_t *st = step_or_die(pat_or_die(w[1], w[2]), w[3]);
         if (n < 5)
@@ -1515,13 +1451,6 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         load_force = atoi(a);
     else if (!strcmp(cmd, "steps"))
         steps_print(atoi(a), atoi(b));
-    else if (!strcmp(cmd, "weavesteps")) {          /* weavesteps PAT: the WEAVE track's pattern: each step's tracks, length */
-        const wvpat_t *wp = &pats.weave[(atoi(a) - 1) & (NPATT - 1)];
-        printf("  weave pattern %d: %d sixteenths\n", atoi(a), wp->len);
-        for (int s2 = 0; s2 < NSTEP; s2++)
-            if (wv_mask(&wp->st[s2]))
-                printf("    %2d: tracks 0x%03x len %d\n", s2 + 1, (unsigned)wv_mask(&wp->st[s2]), wp->st[s2].len);
-    }
     else if (!strcmp(cmd, "step")) {                /* step T PAT S NOTE [VEL] */
         char e[16] = {0};
         tpat_t *tp = pat_of(atoi(a), atoi(b));
@@ -1577,62 +1506,8 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         do_new_proj();
     else if (!strcmp(cmd, "ccreset"))              /* the CCs-out count from 0 (expect ccouts) */
         cc_out_n = 0;
-    else if (!strcmp(cmd, "upgrade9")) {           /* upgrade9 SLOT: a format-9 project (before the kit's keys had their
-                                                    * own sends) in slot 1..3 made format 10 and saved there: each key's
-                                                    * values in their new places, the kit's track sends on every key,
-                                                    * the lanes' drum parameters and tune renumbered (a one-off rescue,
-                                                    * build/rescue: restore a backup, upgrade9, backup) */
-        enum { O_TRK = offsetof(settings_t, trk), ODP = 18, ONTP = TP_DRUM0 + 11 * ODP, OTRK = ONTP + NAME_LEN + 4 };
-        static uint8_t old[4096];
-        int slot = a ? atoi(a) - 1 : -1, len, k, p, t, nl = 0;
-        if (slot < 0 || slot >= NPROJ)
-            host_die("upgrade9 SLOT", "");
-        len = plat_store_load(OBJ_PROJ(slot, 0), old, sizeof old);
-        if (len != O_TRK + NALLTRK * OTRK || get32(old) != PROJ_MAGIC || get32(old + 4) != 9u)
-            host_die("upgrade9: no format-9 project in slot", a);
-        proj_slot = (uint8_t)slot;
-        slot_objects(slot);
-        project_defaults();
-        len = plat_store_load(stream_obj[0], io_buf, sizeof io_buf);
-        if (len < 4 || get32(io_buf) != PROJ_STREAM || load_stream(len, 0))
-            host_die("upgrade9: its patterns do not load", a);
-        for (k = 0; k < NLANE; k++) {               /* (before the clamp: an old index's range is another's now) */
-            lane_t *l = &pats.lane[k];
-            if (!l->used)
-                continue;
-            if (l->param == 0xFEu)                  /* format 9's LANE_TUNE */
-                l->param = LANE_TUNE;
-            else if (l->param >= TP_DRUM0)
-                l->param = (uint16_t)TP_DRUM((l->param - TP_DRUM0) / ODP, (l->param - TP_DRUM0) % ODP);
-            nl++;
-        }
-        patterns_clamp();
-        memcpy(&proj, old, O_TRK);
-        proj.format = PROJ_FORMAT;
-        for (t = 0; t < NALLTRK; t++) {
-            const uint8_t *o = old + O_TRK + t * OTRK;
-            trk_t *nt = &proj.trk[t];
-            int drum = t < NTRK && o[TP_ENGINE] == EG_DRUMLINE;
-            memcpy(nt->par, o, TP_DRUM0);
-            for (k = 0; k < DL_NSOUND; k++) {
-                for (p = 0; p < ODP; p++)
-                    nt->par[TP_DRUM(k, p)] = o[TP_DRUM0 + k * ODP + p];
-                nt->par[TP_DRUM(k, DP_SEND1)] = drum ? o[TP_SEND1] : DL_DEFAULT_KIT[k][DP_SEND1];
-                nt->par[TP_DRUM(k, DP_SEND2)] = drum ? o[TP_SEND2] : DL_DEFAULT_KIT[k][DP_SEND2];
-            }
-            memcpy(nt->name, o + ONTP, NAME_LEN);
-            memcpy(nt->rsv, o + ONTP + NAME_LEN, 4);
-        }
-        if (!settings_valid(&proj))
-            host_die("upgrade9: the settings do not check out", a);
-        project_apply();
-        if (project_save(slot))
-            host_die("upgrade9: not saved", a);
-        printf("upgrade9: slot %d made format %u (%d lanes)\n", slot + 1, PROJ_FORMAT, nl);
-    }
     else if (!strcmp(cmd, "storesave") || !strcmp(cmd, "storeload")) {   /* storesave FILE / storeload FILE: the
-                                                     * simulated flash's store objects to a file and back (an old
-                                                     * build's projects, for the migrations' tests) */
+                                                     * simulated flash's store objects to a file and back */
         int save = cmd[5] == 's';
         FILE *f = fopen(a, save ? "wb" : "rb");
         if (!f)

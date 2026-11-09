@@ -115,7 +115,7 @@ def host(rows, voices, hold):
     scr = ROOT / "build" / "preset_prof.xy"
     scr.parent.mkdir(parents=True, exist_ok=True)
     scr.write_text("\n".join(lines) + "\n")
-    exe = ROOT / "app" / "build" / "host" / "loom_host"
+    exe = ROOT / "app" / "build" / "host" / "cold_host"
     res = subprocess.run([str(exe), str(scr), str(ROOT / "build" / "preset_prof_host")], capture_output=True,
                          text=True)
     m = re.findall(r"model load mean ([\d.]+) %, peak ([\d.]+) %, voices (\d+)", res.stdout)
