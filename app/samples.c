@@ -5,7 +5,7 @@
  * to seven bytes).
  * One bank (slot 0), 216 KB over three flash windows (dsp/sample.h SMP_REG*); an offset is virtual, through the
  * windows end to end: a 2048-byte header (at 0xC1000), then the data.
- *   INFO        1                    -> "LOOM-8 <version>", 0 0 0 0 0 0
+ *   INFO        1                    -> "COLD <version>", 0 0 0 0 0 0
  *   SMP_BEGIN  11 slot               -> slot, rc     the bank's user samples vanish, its first sector is erased
  *   SMP_WRITE  12 slot off3 data     -> slot, off3, rc    256 bytes (packed) at off (>= 2048, 256-aligned) of the
  *                                       bank; a 4 KB boundary (a sector of a window) is erased first
@@ -196,7 +196,7 @@ static int smp_frame(const uint8_t *p, uint32_t n)
     rp_start(cmd);
     switch (cmd) {
     case SB_INFO: {
-        const char *nm = "LOOM-8 " APP_VERSION;
+        const char *nm = "COLD " APP_VERSION;
         for (i = 0; nm[i] && i < 24u; i++)
             rp_byte((uint8_t)nm[i]);
         rp_byte(0);

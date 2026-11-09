@@ -49,7 +49,7 @@ for s in $SONGS; do
     rm -rf "$d" && mkdir -p "$d"
     echo "== $s"
     rc=0
-    app/build/host/loom_host "tools/demos/$s.xy" "$d" > "$d/log.txt" 2>&1 || rc=$?
+    app/build/host/cold_host "tools/demos/$s.xy" "$d" > "$d/log.txt" 2>&1 || rc=$?
     # the simulator's layout audit (gfx_loom.c): none of the songs' screens is flagged; a LAYOUT line is printed
     # below as a note, not a failure (the audio is still good)
     if [ $rc -ne 0 ] && { grep -qE '^(FAIL|demo: |line [0-9]+: unknown)' "$d/log.txt" || [ ! -f "$d/loom_demo_$s.wav" ]; }; then
@@ -63,7 +63,7 @@ for s in $SONGS; do
         stem() {   # NAME VAR=VALUE ...
             n=$1; shift
             mkdir -p "$d/stems/.$n"
-            env "$@" app/build/host/loom_host "tools/demos/$s.xy" "$d/stems/.$n" > /dev/null 2>&1
+            env "$@" app/build/host/cold_host "tools/demos/$s.xy" "$d/stems/.$n" > /dev/null 2>&1
             mv "$d/stems/.$n/loom_demo_$s.wav" "$d/stems/$n.wav" && rm -rf "$d/stems/.$n"
         }
         for t in 1 2 3 4 5 6 7 8; do stem "T$t" LOOM_MST=raw LOOM_SOLO="$t,fx1,fx2" & done

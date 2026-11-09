@@ -2,7 +2,7 @@
 # hat models (9W9's sampler on ER-99's hat, from the resource region). house_acid.xy: the house demo with a 303 on the bass and a 909 kick and clap: T2 the acid
 # engine, an acid line with accents (velocity 112+), slides (a note held into the next) and a glide trick, its cutoff
 # opened by hand through the song; T1's kick and clap the 909 models (9W9's circuits). Everything else as house.xy. Renders with house's bank (build/demos/house.bin: tools/demos/render.sh house
-# makes it): app/build/host/loom_host tools/demos/house_acid.xy DIR
+# makes it): app/build/host/cold_host tools/demos/house_acid.xy DIR
 #   T1 kit: a round kick on every beat, clap, the open hat on the offbeats, shaker, conga; a little swing
 #   T2 tines "felt bass": the bass, ducked by the kick (pump)       T3 tines "felt piano": minor-ninth stabs, delayed
 #   T4 brocade "damask" (five saws): the pad, pumped by the kick    T5 slice: the sesame break, high-passed, the top

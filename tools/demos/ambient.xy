@@ -1,5 +1,5 @@
 # LOOM-8 demo: ambient, 64 BPM, D major. The synth engines and the kit's models only (no samples: publishable).
-# (Rendered by loom_host directly: it has no bank.)
+# (Rendered by cold_host directly: it has no bank.)
 #   T1 kit: barely there (a low kick on the one, a shaker breathing, the string model now and then)
 #   T2 organ "chapel": the chords, a soft pipe, dark   T3 voile "ninon": the choir above them, a bar a note
 #   T4 swarm "angora": a theremin, four notes in four bars   T5 tines "lullaby": a music box, sparse

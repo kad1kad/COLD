@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-// LOOM-8's sample bank as a section of the backup file (fm1-base's web/backup page, EXTRAS; tag "LSMP"): read back
+// COLD's sample bank as a section of the backup file (fm1-base's web/backup page, EXTRAS; tag "LSMP"): read back
 // through SMP_READ (17), written as the samples page writes it (BEGIN 11, WRITE 12, HDR 16, END 13; ERASE 14 for a
 // bank with no samples), app/samples.c. The section is the bank's image as tools/loom_samples.py backup / extract
 // make it (the 2048-byte header, then the data; a header alone with a count of 0 for an empty bank), so
@@ -16,7 +16,7 @@ async function sbReq(link, cmd, args, ms = 3000, is = () => true) {
   const end = Date.now() + ms;
   for (;;) {
     const left = end - Date.now();
-    if (left <= 0 || link.lost) throw new Error("LOOM-8 stopped answering.");
+    if (left <= 0 || link.lost) throw new Error("COLD stopped answering.");
     const p = await link.read(left);
     if (p && p.length > 5 && p[1] === SB[0] && p[2] === SB[1] && p[3] === SB[2] && p[4] === cmd && is(p.slice(5, -1))) return p.slice(5, -1);
   }
@@ -34,8 +34,8 @@ async function sbRead(link, off, n, onPart) {
       try { r = await sbReq(link, 17, [0, ...off3(adr), want & 0x7F, want >> 7], 3000, (a) => sameOff(a, adr)); }
       catch (e) { if (k >= 4) throw e; }
     }
-    if (r[4]) throw new Error(r[4] === 4 ? "LOOM-8 is in the middle of writing its samples. Try again when it's done."
-                                         : `LOOM-8 couldn't read its samples (${SB_RC[r[4]] || r[4]}).`);
+    if (r[4]) throw new Error(r[4] === 4 ? "COLD is in the middle of writing its samples. Try again when it's done."
+                                         : `COLD couldn't read its samples (${SB_RC[r[4]] || r[4]}).`);
     const b = unpack7(r.slice(5));
     if (b.length < want) throw new Error("A piece of the samples went missing on the way. Press Back up again.");
     out.set(b.subarray(0, want), at);
@@ -67,11 +67,11 @@ const LOOM_SAMPLES = {
   what: "the samples",
   async backup(link, onProgress = () => {}) {
     const info = await sbReq(link, 15, [0]);
-    if (info[0] !== 2) throw new Error("This LOOM-8 is too old to back up its samples. Update it from the Install page.");
+    if (info[0] !== 2) throw new Error("This COLD is too old to back up its samples. Update it from the Install page.");
     if (!info[5]) { onProgress(1); return emptyBank(); }
     const hdr = await sbRead(link, 0, BANK_HDR);
     const h = parseHeader(hdr);
-    if (!h || h.dataLen > BANK_MAX_DATA) throw new Error("LOOM-8's samples could not be read (their header).");
+    if (!h || h.dataLen > BANK_MAX_DATA) throw new Error("COLD's samples could not be read (their header).");
     const data = await sbRead(link, BANK_HDR, h.dataLen, onProgress);
     if (crc32(data) !== h.crc) throw new Error("The samples arrived damaged. Press Back up again.");
     const img = new Uint8Array(BANK_HDR + data.length);
@@ -87,7 +87,7 @@ const LOOM_SAMPLES = {
     const b = bankOf(data);
     if (!b.count) {
       const r = await sbReq(link, 14, [0], 60000);
-      if (r[1]) throw new Error(`LOOM-8 couldn't erase its samples (${SB_RC[r[1]] || r[1]}).`);
+      if (r[1]) throw new Error(`COLD couldn't erase its samples (${SB_RC[r[1]] || r[1]}).`);
       onProgress(1);
       return;
     }
@@ -99,11 +99,11 @@ const LOOM_SAMPLES = {
         catch (e) { if (cmd !== 12 || k >= 4) throw e; }
       }
       const rc = r.length ? r[r.length - 1] : 99;
-      if (rc) throw new Error(`LOOM-8 didn't take the samples (${SB_RC[rc] || rc}).`);
+      if (rc) throw new Error(`COLD didn't take the samples (${SB_RC[rc] || rc}).`);
       if (cmd === 12) onProgress((Math.min(what + 256, b.img.length) - BANK_HDR) / total);
     }
     const info = await sbReq(link, 15, [0]);
-    if (info[5] !== b.count) throw new Error(`LOOM-8 shows ${info[5]} samples, not ${b.count}.`);
+    if (info[5] !== b.count) throw new Error(`COLD shows ${info[5]} samples, not ${b.count}.`);
   },
 };
 return [LOOM_SAMPLES];

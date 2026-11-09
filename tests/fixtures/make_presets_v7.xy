@@ -1,6 +1,6 @@
 # user presets in format 7 (before knit's osc 2 fine): user preset 1, a knit with osc 2 at +11 st, saved by that
 # build through EDIT's SEL list, for the migration's test (tests/scenarios/osc2fine.xy). Run by a format 15 / presets
-# format 7 build (33e5b6f): its loom_host tests/fixtures/make_presets_v7.xy OUT
+# format 7 build (33e5b6f): its cold_host tests/fixtures/make_presets_v7.xy OUT
 wait 300
 spin ALGO 2
 knob 3 engine knit

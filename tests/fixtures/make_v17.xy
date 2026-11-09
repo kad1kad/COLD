@@ -1,5 +1,5 @@
 # a format 17 project (no hit settings yet): a kit step's own chance and trick, on all its sounds; saved by that build,
-# for the migration's test (tests/scenarios/migrate.xy). Run by a format 17 build (e8bf1a5): its loom_host
+# for the migration's test (tests/scenarios/migrate.xy). Run by a format 17 build (e8bf1a5): its cold_host
 # tests/fixtures/make_v17.xy OUT
 wait 300
 bpm 97

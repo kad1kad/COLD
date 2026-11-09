@@ -1,5 +1,5 @@
 # a format 18 project with PR #13's random player (its one octave knob, TP_P4 0..24): saved by that build, for the
-# migration's test (tests/scenarios/migrate.xy). Run by a format 18 build (ce38001): its loom_host
+# migration's test (tests/scenarios/migrate.xy). Run by a format 18 build (ce38001): its cold_host
 # tests/fixtures/make_v18.xy OUT
 wait 300
 bpm 97

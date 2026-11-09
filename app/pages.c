@@ -2556,7 +2556,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "Hold SAVE and press white key 1 to 3 to save to that slot."},
     {B_SAVE, PG_SOUND, "Save", "Tap to save the project.",
      "Hold SAVE and press a white key: the sound as that user preset."},
-    {B_SAVE, PG_ANY, "Save", "Saves now (LOOM-8 saves by itself when stopped and quiet).", "Hold SAVE and press white key 1 to 3 to save to that slot."},
+    {B_SAVE, PG_ANY, "Save", "Saves now (COLD saves by itself when stopped and quiet).", "Hold SAVE and press white key 1 to 3 to save to that slot."},
     {B_REC, PG_ANY, "Recording", "Stopped: a tap, then each key writes a step. + PLAY: live.",
      "Playing: hold it and play. Held, the knobs set click, count-in, mode."},
     {B_PLAY, PG(P_SONG), "Play", "Plays the song from the slot picked. PLAY again stops.", "SEL's PLAY SONG: from the top."},
@@ -2965,7 +2965,7 @@ static void list_setup(int g)
     list_add(ACTION_NAME[A_CC_IN], proj.rsv[3] & CC_IN_ENDLESS ? "endless" : "absolute", LK_PICK, A_CC_IN);
     list_add(ACTION_NAME[A_CC_OUT], proj.rsv[2] & CC_OUT_OFF ? "off" : "on", LK_PICK, A_CC_OUT);
     list_add(ACTION_NAME[A_SCENES_OUT], proj.rsv[2] & SCENES_OUT ? "on" : "off", LK_PICK, A_SCENES_OUT);
-    list_head("LOOM-8");
+    list_head("COLD");
     list_page_knobs(P_SETUP, 9u);                    /* LIGHTS, THEME */
     list_add(ACTION_NAME[A_LARGE_TYPE], !large_type() ? "off" : lt_ok ? "on" : "on: reinstall", LK_PICK, A_LARGE_TYPE);
     list_add(ACTION_NAME[A_AUTOSAVE], proj.rsv[2] & AUTOSAVE_OFF ? "off" : "on", LK_PICK, A_AUTOSAVE);
@@ -5738,7 +5738,7 @@ static void draw_setup(void)
     if (LARGE) {                                     /* large type: the rows the knobs under them do not show (clock,
                                                       * notes, theme: their values right there), at 15 px */
         setup_f = &LFONT_S;
-        setup_row(1, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
+        setup_row(1, "tempo from", seq.ext ? "MIDI clock in" : "COLD");
         setup_row(17, "USB audio", USBA_NAME[proj.usb_full & 1u]);
         setup_row(33, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: SAVE saves" : "on");
         setup_row(49, "BT audio", ta);
@@ -5747,7 +5747,7 @@ static void draw_setup(void)
         cv_blit(0, MAIN_Y);
         return;
     }
-    setup_row(2, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
+    setup_row(2, "tempo from", seq.ext ? "MIDI clock in" : "COLD");
     setup_row(16, "clock", CLOCK_ROW[proj.clock % SEQ_NCLK]);
     setup_row(30, "sends notes", proj.send_notes ? "yes" : "no");
     setup_row(44, "USB audio", USBA_NAME[proj.usb_full & 1u]);

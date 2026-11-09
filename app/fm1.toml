@@ -1,8 +1,8 @@
 # LOOM-8's build settings (fm1-base's tools/build.py: ./build.sh)
-name = "loom"                  # the build's files: loom.fwsc, loom-X.Y.fwsc, loom_host (APP_NAME, LOOM-8, is in app.h)
+name = "cold"                  # the build's files: cold.fwsc, cold-X.Y.fwsc, cold_host (APP_NAME, COLD, is in app.h)
 id_prefix = "FM-1_10"          # package identity: dev FM-1_1000, releases FM-1_10XXYYZZ (every single digit was taken)
-usb_manufacturer = "LOOM-8"
-usb_product = "LOOM-8 FM-1"
+usb_manufacturer = "COLD"
+usb_product = "COLD FM-1"
 ble = true                     # Bluetooth MIDI with a computer
 ble_stack = "own"              # Optimist's own stack (fm1-base bt/), no JieLi library
 ble_pairing = true
@@ -15,7 +15,7 @@ usb_audio_channels = 10        # the master on 1 and 2, tracks 1..8 on 3..10 (ea
 usb_host = true                # the USB port as a MIDI host (Setup's USB PORT): a controller or a synth, through a powered hub
 mirror = true                  # the screen and the panel on a computer over USB (base/web/mirror, tools/fm1_mirror.py)
 backup = true                  # projects and presets over USB (base/tools/fm1_backup.py); the page adds the samples (app/web/backup/extras.js)
-backup_ext = "loom8"           # the backup page's files: NAME.loom8
+backup_ext = "cold"             # the backup page's files: NAME.cold
 backup_holds = "the three projects, the user presets and the samples"
 words = "words.tsv"
 boot_pack = true               # .ram_text and .data LZMA-packed in the image, unpacked at boot (Melodee's: ~9 KB of flash)
@@ -38,15 +38,15 @@ resources = "{gen}/res.bin"
 resources_what = "the 909 cymbals and the large type"   # (the installer's words: "Writing the 909 cymbals and ...")
 resources_what_ja = "909 のシンバルと大きな文字"
 # the site
-tagline = "a pocket groovebox"
-repo = "https://github.com/charlesvestal/fm1-loom"
+tagline = "a minimal four-track groovebox"
+repo = "https://github.com/kad1kad/COLD"
 licence = "GPL-3.0-only"        # (the acid engine, dsp/bass303.c: the firmware as a whole; most files MPL-2.0: LICENSING.md)
 credits = "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments). Supersaw (brocade): after NuSaw (MIT). Cane, voile and gingham: Mutable Instruments Braids by Emilie Gillet (MIT). Acid: X0X's 303, from Open303 by Robin Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). Reverb: the plate after 9W9 by athousanddetails (with permission), the PlayStation modes PSXVerb (MIT). The 909 kick, snare and clap: renders of 9W9 by athousanddetails (with permission); the 909 models: 9W9's circuits (GPL-3.0); the hat and the 909 cymbals: ER-99's samples by Matthew Cieplak, through 9W9 (GPL-3.0). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). USB MIDI host: Melodee's, by Adrien Tibi and Kerem Kilic (MPL-2.0). Bluetooth: Optimist's stack by Henri David (MPL-2.0), with Android's SBC encoder (Apache-2.0), micro-ecc by Kenneth MacKay (BSD-2-Clause) and the radio's set-up after JieLi's AC79 SDK (Apache-2.0). Fonts: Barlow, Terminus (SIL OFL 1.1)."
 
 # firmware.json, for firmware hubs (fm1-base docs/FIRMWARE-JSON.md)
-author = "Charles Vestal"
-description = "LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox. Eight tracks play on eleven engines (seven synths, a sample player, a break slicer, a drum kit and MIDI out), with a 64-step sequencer, step tricks and parameter locks. Weave two patterns into a third, let the conductor move the song through a progression, and play throws while it runs. Two send effects, a mixer, scenes and a song round it out. MIDI goes over USB, Bluetooth and the TRS jack, and a USB keyboard or synth plugs in through a powered hub."
+author = "Kad"
+description = "COLD is a work in progress: a minimal four-track groovebox for the M-VAVE FM-1, forked from LOOM-8 (fm1-loom by Charles Vestal). It keeps LOOM-8's step sequencer, parameter locks, scenes and song, and is being cut down and given a new interface. Until that work lands it plays as LOOM-8 does."
 tags = ["groovebox", "drum-machine", "sequencer", "synth", "sampler", "midi"]
-install = "https://charlesvestal.github.io/fm1-loom/install/"
-site = "https://charlesvestal.github.io/fm1-loom/"
+install = "https://kad1kad.github.io/COLD/install/"
+site = "https://kad1kad.github.io/COLD/"
 screenshot = "docs/img/screen-card.png"

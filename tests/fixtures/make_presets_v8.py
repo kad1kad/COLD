@@ -34,7 +34,7 @@ for k in range(NKITS):
         img[keys + NKEY * DP_N + 0] = 99                # key 1's knob 5
     kits += img
 obj1 = struct.pack("<I", 8) + bytes(presets) + bytes(kits)
-head = struct.pack("<IHBB", 0x42384D4C, 1, len(OBJS), 0) + struct.pack("<I", 0)
+head = struct.pack("<IHBB", 0x42444C43, 1, len(OBJS), 0) + struct.pack("<I", 0)
 img = bytearray(head + struct.pack("<I", zlib.crc32(head)))
 for o in OBJS:
     data = obj1 if o == 1 else b""

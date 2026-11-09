@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
 """LOOM-8's hardware profiler: each kernel of app/dsp/bench.c timed on an attached FM-1 (a build with XY_BENCH=1:
-  XY_BENCH=1 FM1B_POOL_SPARE=0 ./build.sh && python3 base/tools/fm1_install.py app/build/loom.fwsc --yes)
+  XY_BENCH=1 FM1B_POOL_SPARE=0 ./build.sh && python3 base/tools/fm1_install.py app/build/cold.fwsc --yes)
 and on the host (tests/host/hw_bench.sh), side by side:
   dev t/s   the FM-1's fastest run, in 24 MHz ticks a sample
   % core    of one core's time at 44.1 kHz (544 ticks a sample): what one instance of the kernel costs, running

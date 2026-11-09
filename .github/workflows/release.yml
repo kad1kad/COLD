@@ -71,26 +71,26 @@ jobs:
         if [[ "$GITHUB_REF" == refs/tags/* ]]; then
           version=${GITHUB_REF_NAME#v}
           ./build.sh --release "$version"
-          cp "app/build/loom-$version.fwsc" build/release-assets/
-          cp "app/build/loom-$version-res.bin" build/release-assets/   # (the 909 cymbals: the installer writes them)
-          cp app/build/loom.bin "build/release-assets/loom-$version-app.bin"
+          cp "app/build/cold-$version.fwsc" build/release-assets/
+          cp "app/build/cold-$version-res.bin" build/release-assets/   # (the 909 cymbals: the installer writes them)
+          cp app/build/cold.bin "build/release-assets/cold-$version-app.bin"
           # the app for host apps (base/README.md, .rfm1)
           ./build.sh --rfm1 --release "$version"
-          cp "app/build/loom-$version.rfm1" build/release-assets/
+          cp "app/build/cold-$version.rfm1" build/release-assets/
         else
           ./build.sh
-          cp app/build/loom.fwsc build/release-assets/
-          cp app/build/loom-res.bin build/release-assets/
-          cp app/build/loom.bin build/release-assets/loom-app.bin
+          cp app/build/cold.fwsc build/release-assets/
+          cp app/build/cold-res.bin build/release-assets/
+          cp app/build/cold.bin build/release-assets/cold-app.bin
           ./build.sh --rfm1
-          cp app/build/rfm1/loom-dev+*.rfm1 build/release-assets/loom.rfm1
+          cp app/build/rfm1/cold-dev+*.rfm1 build/release-assets/cold.rfm1
         fi
         # the firmware described for hubs (base/docs/FIRMWARE-JSON.md)
         cp app/build/firmware.json build/release-assets/
       test: |
         set -euo pipefail
-        # (the update-path check flashes the last package over an older one: it needs app/build/loom.fwsc)
-        [ -f app/build/loom.fwsc ] || ./build.sh
+        # (the update-path check flashes the last package over an older one: it needs app/build/cold.fwsc)
+        [ -f app/build/cold.fwsc ] || ./build.sh
         sh tests/run_tests.sh
       packages: build/release-assets/*
 

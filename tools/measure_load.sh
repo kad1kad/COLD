@@ -23,7 +23,7 @@
 # release-all can lose its keys frame: a key then stays down, and its next press sounds nothing: the old 0-voice
 # rows). The crash log is read after each block (a crash stops the run). A table is printed and appended to build/measure_load.csv with the label (the
 # firmware), so builds can be compared:
-#   ./build.sh && python3 base/tools/fm1_install.py app/build/loom.fwsc --yes && tools/measure_load.sh --label default
+#   ./build.sh && python3 base/tools/fm1_install.py app/build/cold.fwsc --yes && tools/measure_load.sh --label default
 # FM1_REMOTE: the path of fm1_remote.py (default base/tools/fm1_remote.py); needs mido + python-rtmidi.
 set -eu
 cd "$(dirname "$0")/.."

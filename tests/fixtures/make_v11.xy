@@ -1,5 +1,5 @@
 # a format 11 project (32 scenes, one kit mute mask a scene): saved by that build, for the migration's test
-# (tests/scenarios/migrate.xy). Run by a format 11 build (3679242): its loom_host tests/fixtures/make_v11.xy OUT
+# (tests/scenarios/migrate.xy). Run by a format 11 build (3679242): its cold_host tests/fixtures/make_v11.xy OUT
 wait 300
 bpm 101
 wait 50

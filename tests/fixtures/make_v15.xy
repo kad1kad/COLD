@@ -1,5 +1,5 @@
 # a format 15 project (the tracks packed, TP_DRUMX after the kit keys; no osc 2 fine yet): saved by that build, for
-# the migration's test (tests/scenarios/migrate.xy). Run by a format 15 build (33e5b6f): its loom_host
+# the migration's test (tests/scenarios/migrate.xy). Run by a format 15 build (33e5b6f): its cold_host
 # tests/fixtures/make_v15.xy OUT
 wait 300
 bpm 103

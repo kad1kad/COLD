@@ -214,7 +214,7 @@ static void set_tp(int trk, int p, int v)
             engine_set(trk, TP_DRUMX(key, k), par[TP_DRUMX(key, k)]);
         }
         if (v % NDM >= DM_909CH && v % NDM <= DM_909CRASH && !d909_res_ok())
-            say_no("NO SAMPLES", "reinstall LOOM-8");   /* (the 909 cymbals: the installer writes them beside it) */
+            say_no("NO SAMPLES", "reinstall COLD");   /* (the 909 cymbals: the installer writes them beside it) */
         mark_dirty();
         return;
     }

@@ -23,7 +23,7 @@ $CC -O2 -std=c99 -DPLAT_HOST -Iapp/dsp -Iapp -Ibase/include -Iapp/build/gen -o b
     tools/preset_scripts.c app/dsp/synth.c app/dsp/drumline.c app/dsp/d909.c app/dsp/digisophie.c app/dsp/sample.c app/dsp/bass303.c -lm
 names=$(build/host/preset_scripts "$OUT" $ROLES)
 for n in $names; do
-    app/build/host/loom_host "$OUT/$n.xy" "$OUT" >/dev/null || { echo "render failed: $n"; exit 1; }
+    app/build/host/cold_host "$OUT/$n.xy" "$OUT" >/dev/null || { echo "render failed: $n"; exit 1; }
 done
 "$PY" tools/preset_levels.py "$OUT" $names
 echo "presets: $OUT/index.html, $OUT/levels.txt"

@@ -1,5 +1,5 @@
 # a format 10 project (LOOM-8 0.5-beta's): saved by that build, for the migration's test (tests/scenarios/migrate.xy)
-# (run by a format 10 build, 4f0454c, with storesave: from the repository root, its loom_host tests/fixtures/make_v10.xy OUT)
+# (run by a format 10 build, 4f0454c, with storesave: from the repository root, its cold_host tests/fixtures/make_v10.xy OUT)
 wait 300
 bpm 97
 wait 50

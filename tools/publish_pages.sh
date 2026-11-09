@@ -9,7 +9,7 @@ set -e
 cd "$(dirname "$0")/.."
 V="${1:?usage: tools/publish_pages.sh VERSION}"
 PY="${PYTHON:-python3}"
-PKG="app/build/loom-$V.fwsc"
+PKG="app/build/cold-$V.fwsc"
 [ -f "$PKG" ] || { echo "no $PKG: run ./build.sh --release $V first"; exit 1; }
 PYTHON="$PY" sh build.sh --web --release "$V"
 node tests/host/emu_test.mjs app/build/emu/app.wasm

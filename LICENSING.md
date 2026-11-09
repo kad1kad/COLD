@@ -101,7 +101,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - The 909 cymbals (`app/samples/909/hh.wav`, `ride.wav`, `crash.wav`): ER-99's hat, ride and crash samples by
   Matthew Cieplak ([ER-99](https://github.com/matthewcieplak/er-99)), as 9W9 ships them, unchanged (copied from
   X0X's `assets/909/`). **GPL-3.0**. `tools/gen_909res.py` packs them (5-bit block companding) into the resource
-  region (`loom-X.Y-res.bin` beside the package on the site and in the releases), which the installer writes beside
+  region (`cold-X.Y-res.bin` beside the package on the site and in the releases), which the installer writes beside
   the firmware after an update; the 909 hat, open hat, ride and crash models play them from there. The host
   simulator and the browser emulator build them in.
 - The factory closed hat (`app/samples/909_hat.wav`) is 9W9's hat, a sample 9W9 takes from

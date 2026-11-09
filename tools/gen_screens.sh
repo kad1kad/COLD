@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 PY="${PYTHON:-/opt/homebrew/bin/python3.14}"
 PYTHON="$PY" sh build.sh --host >/dev/null
 rm -rf build/manual && mkdir -p build/manual docs/img
-app/build/host/loom_host tools/manual_screens.xy build/manual >/dev/null
+app/build/host/cold_host tools/manual_screens.xy build/manual >/dev/null
 "$PY" - build/manual docs/img <<'PY'
 import sys
 from pathlib import Path
